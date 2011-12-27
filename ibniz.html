@@ -9,8 +9,8 @@ Why u no canvas
 	<input type="text" id="code" style="width: 256px"><br>
 <input type="checkbox" id="pause">Pause <input type="button" onclick="loadFileURL()" value="Load...">
 </form>
-<div id="fps"><b>FPS:</b> [implementing, give me a second]</div>
-<b>IBNIZ-js 0.4</b><br>
+<div id="fps"><b>FPS:</b> [loading...]</div>
+<b>IBNIZ-js 0.4a</b><br>
 <script type="text/javascript">
 /* This program is free software. It comes without any warranty, to
  * the extent permitted by applicable law. You can redistribute it
@@ -418,311 +418,282 @@ function Parser()
 		// push media context
 		this.pushmedia();
 		// loop
-		while(this.terminate!=1)
-		{
-			this.execOne();
-			this.ip++;
-		}
+		this.exec();
 		if(this.stack.pos>0) this.stackmode = 1;
 	}
 	this.getOp = function(ip)
 	{
 		var cmd = this.parsedCode[this.ip];
-		if(cmd[0]==1) return cmd[1];
+		if(cmd[0]==1 || cmd[0]==4) return cmd[1];
+		else if(cmd[0]==3) return cmd[2];
+		else return 0;
 	}
-	this.execOne = function()
+	this.exec = function()
 	{
-		if(this.terminate==1) return;
-		if(this.ip>=this.parsedCode.length)
+		var cmd;
+		var a;
+		while(this.terminate!=1)
 		{
-			this.terminate=1;
-			return;
-		}
-		var cmd = this.parsedCode[this.ip];
-		switch(cmd[0])
-		{
-			case 4: // op+nextip
-				switch(cmd[1])
-				{
-					case 123:
-						this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
-						this.ip = cmd[2];
-						break;
-					case 63:
-						a = this.stack.pop();
-						if(a==0) this.ip = cmd[2];
-						break;
-					case 58:
-						this.ip = cmd[2];
-						break;
-				}
-				break;
-			case 3: // imm+op
-				switch(cmd[2])
-				{
-					case 43:
-						this.stack.push(this.alu.add(cmd[1],this.stack.pop())); 
-						break;
-					case 45:
-						this.stack.push(this.alu.sub(cmd[1],this.stack.pop())); 
-						break;
-					case 42:
-						this.stack.push(this.alu.mul(cmd[1],this.stack.pop())); 
-						break;
-					case 47:
-						this.stack.push(this.alu.div(cmd[1],this.stack.pop())); 
-						break;
-					case 37:
-						this.stack.push(this.alu.mod(cmd[1],this.stack.pop())); 
-						break;
-					case 38:
-						this.stack.push(this.alu.and(cmd[1],this.stack.pop())); 
-						break;
-					case 124:
-						this.stack.push(this.alu.or(cmd[1],this.stack.pop())); 
-						break;
-					case 94:
-						this.stack.push(this.alu.xor(cmd[1],this.stack.pop())); 
-						break;
-					case 108:
-						this.stack.push(this.alu.shl(cmd[1],this.stack.pop())); 
-						break;
-					case 114:
-						this.stack.push(this.alu.ror(cmd[1],this.stack.pop())); 
-						break;
-					case 97:
-						this.stack.push(this.alu.atan2(cmd[1],this.stack.pop())); 
-						break;
-					case 115:
-						this.stack.push(this.alu.sin(cmd[1])); 
-						break;
-					case 113:
-						this.stack.push(this.alu.sqrt(cmd[1])); 
-						break;
-					case 126:
-						this.stack.push(this.alu.not(cmd[1])); 
-						break;
-					case 100:
-						this.stack.push2(cmd[1]);
-						break;
-					case 40:
-						this.stack.puttop(cmd[1],this.stack.pop());
-						break;
-					case 41:
-						this.stack.push(this.stack.gettop(cmd[1]));
-						break;
-					case 74:
-						this.ip = cmd[1];
-						break;
-					case 64:
-						this.stack.push(this.mem.get(cmd[1]));
-						break;
-					case 33:
-						this.mem.put(cmd[1],this.stack.pop());
-						break;
-					case 86:
-						this.rstack.push(this.rol16(this.ip+1));
-						this.ip = this.rol16(this.mem.get(cmd[1]))-1;
-						break;
-					case 88:
-						this.rstack.push(cmd[1]);
-						this.rstack.push(this.rol16(this.ip+1));
-						break;
-					case 80:
-						this.rstack.push(cmd[1]);
-						break;
-					case 112:
-						break;
-				}
-				break;
-			case 2: // imm
-				this.stack.push(cmd[1]);
-				break;
-			case 1: // op
-				var chr = cmd[1];
-				var a;
-				switch(chr)
-				{
-					// Math!
-					case 43:
-						a = this.stack.pop();
-						this.stack.push(this.alu.add(a,this.stack.pop())); 
-						break;
-					case 45:
-						a = this.stack.pop();
-						this.stack.push(this.alu.sub(a,this.stack.pop())); 
-						break;
-					case 42:
-						a = this.stack.pop();
-						this.stack.push(this.alu.mul(a,this.stack.pop())); 
-						break;
-					case 47:
-						a = this.stack.pop();
-						this.stack.push(this.alu.div(a,this.stack.pop())); 
-						break;
-					case 37:
-						a = this.stack.pop();
-						this.stack.push(this.alu.mod(a,this.stack.pop())); 
-						break;
-					case 38:
-						a = this.stack.pop();
-						this.stack.push(this.alu.and(a,this.stack.pop())); 
-						break;
-					case 124:
-						a = this.stack.pop();
-						this.stack.push(this.alu.or(a,this.stack.pop())); 
-						break;
-					case 94:
-						a = this.stack.pop();
-						this.stack.push(this.alu.xor(a,this.stack.pop())); 
-						break;
-					case 108:
-						a = this.stack.pop();
-						this.stack.push(this.alu.shl(a,this.stack.pop())); 
-						break;
-					case 114:
-						a = this.stack.pop();
-						this.stack.push(this.alu.ror(a,this.stack.pop())); 
-						break;
-					case 97:
-						a = this.stack.pop();
-						this.stack.push(this.alu.atan2(a,this.stack.pop())); 
-						break;
-					case 115:
-						this.stack.push(this.alu.sin(this.stack.pop())); 
-						break;
-					case 113:
-						this.stack.push(this.alu.sqrt(this.stack.pop())); 
-						break;
-					case 60:
-						this.stack.push(this.alu.isneg(this.stack.pop())); 
-						break;
-					case 62:
-						this.stack.push(this.alu.ispos(this.stack.pop())); 
-						break;
-					case 61:
-						this.stack.push(this.alu.iszero(this.stack.pop())); 
-						break;
-					case 126:
-						this.stack.push(this.alu.not(this.stack.pop())); 
-						break;
-					// Exterior!
-					case 77: // media context switch
-						this.mode=1;
-						this.videoout = this.stack.pop();
-						this.stack.clear();
-					case 119: // where am I? well, where are you
-						this.pushmedia();
-						break;
-					case 84:
-						this.terminate = 1;
-						break;
-					// Stack!
-					case 100:
-						this.stack.dup();
-						break;
-					case 120:
-						this.stack.exchange();
-						break;
-					case 118:
-						this.stack.trirot();
-						break;
-					case 112:
-						this.stack.pop();
-						break;
-					case 41:
-						this.stack.push(this.stack.gettop(0-this.rol16(this.stack.pop())));
-						break;
-					case 40:
-						a = this.rol16(this.stack.pop());
-						this.stack.puttop(0-a,this.stack.pop());
-						break;
-					// Memory!
-					case 64:
-						this.stack.push(this.mem.get(this.rol16(this.stack.pop())));
-						break;
-					case 33:
-						a = this.rol16(this.stack.pop());
-						this.mem.put(a,this.stack.pop());
-						break;
-					// Return stack manipulation	
-					case 82:
-						this.stack.push(this.rstack.pop());
-						break;
-					case 80:
-						this.rstack.push(this.stack.pop());
-						break;
-					// Loops
-					case 105:
-						this.stack.push(this.rstack.gettop(-1));
-						break;
-					case 106:
-						this.stack.push(this.rstack.gettop(-3));
-						break;
-					case 74:
-						this.ip = this.rol16(this.stack.pop())-1;
-						break;
-					case 91:
-						this.rstack.push(this.rol16(this.ip+1));
-						break;
-					case 93:
-						if(this.stack.pop()!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
-						else this.rstack.pop();
-						break;
-					case 88:
-						this.rstack.push(this.stack.pop());
-						this.rstack.push(this.rol16(this.ip+1));
-						break;
-					case 76:
-						a=this.rstack.gettop(-1)-(1<<16);
-						this.rstack.puttop(-1,a);
-						if(a!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
-						else { this.rstack.pop(); this.rstack.pop(); }
-						break;
-					// Subroutines
-					case 125:
-						this.ip = this.rol16(this.rstack.pop())-1;
-						break;
-					case 86:
-						this.rstack.push(this.rol16(this.ip+1));
-						this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
-						break;
-					// DEAD CODE left just in case something breaks
-					case 123:
-						this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
-						while(chr!=125 && this.terminate==0)
-						{
-							if(this.ip>=this.parsedCode.length) this.terminate=1;
-							else this.ip++;
-							chr = this.getOp(this.ip);
-						}
-						break;
-					case 63:
-						a = this.stack.pop();
-						if(a==0)
-						{
-							while(chr!=58 && this.terminate==0)
-							{
-								if(this.ip>=this.parsedCode.length) this.terminate=1;
-								else this.ip++;
-								chr = this.getOp(this.ip);
-							}
-						}
-						break;
-					case 58:
-						while(chr!=59 && this.terminate==0)
-						{
-							if(this.ip>=this.parsedCode.length) this.terminate=1;
-							else this.ip++;
-							chr = this.getOp(this.ip);
-						}
-						break;
-					default:
-						break;
-				}
-				break;
-			default:
-				break;
+			if(this.ip>=this.parsedCode.length)
+			{
+				this.terminate=1;
+				return;
+			}
+			cmd = this.parsedCode[this.ip];
+			switch(cmd[0])
+			{
+				case 4: // op+nextip
+					switch(cmd[1])
+					{
+						case 123:
+							this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
+							this.ip = cmd[2];
+							break;
+						case 63:
+							a = this.stack.pop();
+							if(a==0) this.ip = cmd[2];
+							break;
+						case 58:
+							this.ip = cmd[2];
+							break;
+					}
+					break;
+				case 3: // imm+op
+					switch(cmd[2])
+					{
+						case 43:
+							this.stack.push(this.alu.add(cmd[1],this.stack.pop())); 
+							break;
+						case 45:
+							this.stack.push(this.alu.sub(cmd[1],this.stack.pop())); 
+							break;
+						case 42:
+							this.stack.push(this.alu.mul(cmd[1],this.stack.pop())); 
+							break;
+						case 47:
+							this.stack.push(this.alu.div(cmd[1],this.stack.pop())); 
+							break;
+						case 37:
+							this.stack.push(this.alu.mod(cmd[1],this.stack.pop())); 
+							break;
+						case 38:
+							this.stack.push(this.alu.and(cmd[1],this.stack.pop())); 
+							break;
+						case 124:
+							this.stack.push(this.alu.or(cmd[1],this.stack.pop())); 
+							break;
+						case 94:
+							this.stack.push(this.alu.xor(cmd[1],this.stack.pop())); 
+							break;
+						case 108:
+							this.stack.push(this.alu.shl(cmd[1],this.stack.pop())); 
+							break;
+						case 114:
+							this.stack.push(this.alu.ror(cmd[1],this.stack.pop())); 
+							break;
+						case 97:
+							this.stack.push(this.alu.atan2(cmd[1],this.stack.pop())); 
+							break;
+						case 115:
+							this.stack.push(this.alu.sin(cmd[1])); 
+							break;
+						case 113:
+							this.stack.push(this.alu.sqrt(cmd[1])); 
+							break;
+						case 126:
+							this.stack.push(this.alu.not(cmd[1])); 
+							break;
+						case 100:
+							this.stack.push2(cmd[1]);
+							break;
+						case 40:
+							this.stack.puttop(cmd[1],this.stack.pop());
+							break;
+						case 41:
+							this.stack.push(this.stack.gettop(cmd[1]));
+							break;
+						case 74:
+							this.ip = cmd[1];
+							break;
+						case 64:
+							this.stack.push(this.mem.get(cmd[1]));
+							break;
+						case 33:
+							this.mem.put(cmd[1],this.stack.pop());
+							break;
+						case 86:
+							this.rstack.push(this.rol16(this.ip+1));
+							this.ip = this.rol16(this.mem.get(cmd[1]))-1;
+							break;
+						case 88:
+							this.rstack.push(cmd[1]);
+							this.rstack.push(this.rol16(this.ip+1));
+							break;
+						case 80:
+							this.rstack.push(cmd[1]);
+							break;
+						case 112:
+							break;
+					}
+					break;
+				case 2: // imm
+					this.stack.push(cmd[1]);
+					break;
+				case 1: // op
+					switch(cmd[1])
+					{
+						// Math!
+						case 43:
+							a = this.stack.pop();
+							this.stack.push(this.alu.add(a,this.stack.pop())); 
+							break;
+						case 45:
+							a = this.stack.pop();
+							this.stack.push(this.alu.sub(a,this.stack.pop())); 
+							break;
+						case 42:
+							a = this.stack.pop();
+							this.stack.push(this.alu.mul(a,this.stack.pop())); 
+							break;
+						case 47:
+							a = this.stack.pop();
+							this.stack.push(this.alu.div(a,this.stack.pop())); 
+							break;
+						case 37:
+							a = this.stack.pop();
+							this.stack.push(this.alu.mod(a,this.stack.pop())); 
+							break;
+						case 38:
+							a = this.stack.pop();
+							this.stack.push(this.alu.and(a,this.stack.pop())); 
+							break;
+						case 124:
+							a = this.stack.pop();
+							this.stack.push(this.alu.or(a,this.stack.pop())); 
+							break;
+						case 94:
+							a = this.stack.pop();
+							this.stack.push(this.alu.xor(a,this.stack.pop())); 
+							break;
+						case 108:
+							a = this.stack.pop();
+							this.stack.push(this.alu.shl(a,this.stack.pop())); 
+							break;
+						case 114:
+							a = this.stack.pop();
+							this.stack.push(this.alu.ror(a,this.stack.pop())); 
+							break;
+						case 97:
+							a = this.stack.pop();
+							this.stack.push(this.alu.atan2(a,this.stack.pop())); 
+							break;
+						case 115:
+							this.stack.push(this.alu.sin(this.stack.pop())); 
+							break;
+						case 113:
+							this.stack.push(this.alu.sqrt(this.stack.pop())); 
+							break;
+						case 60:
+							this.stack.push(this.alu.isneg(this.stack.pop())); 
+							break;
+						case 62:
+							this.stack.push(this.alu.ispos(this.stack.pop())); 
+							break;
+						case 61:
+							this.stack.push(this.alu.iszero(this.stack.pop())); 
+							break;
+						case 126:
+							this.stack.push(this.alu.not(this.stack.pop())); 
+							break;
+						// Exterior!
+						case 77: // media context switch
+							this.mode=1;
+							this.videoout = this.stack.pop();
+							this.stack.clear();
+						case 119: // where am I? well, where are you
+							this.pushmedia();
+							break;
+						case 84:
+							this.terminate = 1;
+							break;
+						// Stack!
+						case 100:
+							this.stack.dup();
+							break;
+						case 120:
+							this.stack.exchange();
+							break;
+						case 118:
+							this.stack.trirot();
+							break;
+						case 112:
+							this.stack.pop();
+							break;
+						case 41:
+							this.stack.push(this.stack.gettop(0-this.rol16(this.stack.pop())));
+							break;
+						case 40:
+							a = this.rol16(this.stack.pop());
+							this.stack.puttop(0-a,this.stack.pop());
+							break;
+						// Memory!
+						case 64:
+							this.stack.push(this.mem.get(this.rol16(this.stack.pop())));
+							break;
+						case 33:
+							a = this.rol16(this.stack.pop());
+							this.mem.put(a,this.stack.pop());
+							break;
+						// Return stack manipulation	
+						case 82:
+							this.stack.push(this.rstack.pop());
+							break;
+						case 80:
+							this.rstack.push(this.stack.pop());
+							break;
+						// Loops
+						case 105:
+							this.stack.push(this.rstack.gettop(-1));
+							break;
+						case 106:
+							this.stack.push(this.rstack.gettop(-3));
+							break;
+						case 74:
+							this.ip = this.rol16(this.stack.pop())-1;
+							break;
+						case 91:
+							this.rstack.push(this.rol16(this.ip+1));
+							break;
+						case 93:
+							if(this.stack.pop()!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
+							else this.rstack.pop();
+							break;
+						case 88:
+							this.rstack.push(this.stack.pop());
+							this.rstack.push(this.rol16(this.ip+1));
+							break;
+						case 76:
+							a=this.rstack.gettop(-1)-(1<<16);
+							this.rstack.puttop(-1,a);
+							if(a!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
+							else { this.rstack.pop(); this.rstack.pop(); }
+							break;
+						// Subroutines
+						case 125:
+							this.ip = this.rol16(this.rstack.pop())-1;
+							break;
+						case 86:
+							this.rstack.push(this.rol16(this.ip+1));
+							this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
+							break;
+						default:
+							break;
+					}
+					break;
+				default:
+					break;
+			}
+			this.ip++;
 		}
 	}
 }
@@ -760,7 +731,7 @@ function derp()
 				p.run();
 				cy = ((p.videoout>>>8)&255);
 				cu = (((p.videoout>>>16)&255)^0x80)-128;
-				cv = (((p.videoout>>>24)&255)^0x80)-128;
+				cv = ((p.videoout>>>24)^0x80)-128;
 				id[imgpos++] = clamp((298*cy + 409*cv + 128)>>8);
 				id[imgpos++] = clamp((298*cy - 100*cu - 208*cv + 128)>>8);
 				id[imgpos++] = clamp((298*cy + 516*cu + 128)>>8);
