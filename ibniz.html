@@ -26,34 +26,34 @@ function Stack (len)
 	this.pos = -1;
 	this.len=len;
 	this.push = function(v){
-		if(this.pos==this.len-1) return -1;
-		this.pos++;
-		this.stack[this.pos]=v|0;
-		return 0;
+		this.stack[++this.pos]=v|0;
 	}
 	this.push2 = function(v){
-		if(this.pos>=this.len-2) return -1;
 		this.pos+=2;
 		this.stack[this.pos-1]=v|0;
 		this.stack[this.pos]=v|0;
-		return 0;
+	}
+	this.push3 = function(a,b,c){
+		this.pos+=3;
+		this.stack[this.pos-2]=a;
+		this.stack[this.pos-1]=b;
+		this.stack[this.pos]=c;
 	}
 	this.pop = function(){
 		if(this.pos==-1) return 0;
-		this.pos--;
-		return this.stack[this.pos+1];
+		return this.stack[this.pos--];
 	}
 	this.get = function(addr) {
-		return this.stack[addr&4095];
+		return this.stack[addr];
 	}
 	this.gettop = function(addr) {
-		return this.stack[(this.pos+addr)&4095];
+		return this.stack[this.pos+addr];
 	}
 	this.put = function(addr,v) {
-		this.stack[addr&4095]=v|0;
+		this.stack[addr]=v|0;
 	}
 	this.puttop = function(addr,v) {
-		this.stack[(this.pos+addr)&4095]=v|0;
+		this.stack[this.pos+addr]=v|0;
 	}
 	this.clear = function(){
 		this.pos=-1;
@@ -66,7 +66,6 @@ function Stack (len)
 		var temp = this.stack[this.pos];
 		this.stack[this.pos]=this.stack[this.pos-1];
 		this.stack[this.pos-1]=temp;
-		return 0;
 	}
 	this.trirot = function(){
 		if(this.pos<2) return -1;
@@ -74,10 +73,17 @@ function Stack (len)
 		this.stack[this.pos]=this.stack[this.pos-2];
 		this.stack[this.pos-2]=this.stack[this.pos-1];
 		this.stack[this.pos-1]=temp;
-		return 0;
+	}
+	this.trirot2 = function(){
+		if(this.pos<2) return -1;
+		var temp = this.stack[this.pos-1];
+		this.stack[this.pos-1]=this.stack[this.pos-2];
+		this.stack[this.pos-2]=this.stack[this.pos];
+		this.stack[this.pos]=temp;
 	}
 	this.dup = function(){
-		return this.push(this.stack[this.pos]);
+		this.stack[this.pos+1]=this.stack[this.pos];
+		this.pos++;
 	}
 	this.debug = function(){
 		document.write("Testing Stack...<br>");
@@ -229,12 +235,10 @@ function Parser()
 			switch(this.stackmode)
 			{
 				case 0:
-					this.stack.push(this.alu.f2a(Math.floor(this.t)));
-					this.stack.push(this.alu.f2a((this.y/128)-1));
-					this.stack.push(this.alu.f2a((this.x/128)-1));
+					this.stack.push3(this.t<<16,(this.y<<9)-65536,(this.x<<9)-65536);
 					break;
 				case 1:
-					this.stack.push(this.alu.f2a(Math.floor(this.t)) | ((y&255)<<8) | (x&255));
+					this.stack.push(this.t<<16 | this.xy);
 					break;
 			}
 		else this.stack.push(this.alu.f2a(this.t));
@@ -246,15 +250,11 @@ function Parser()
 		this.terminate = 0;
 		this.stack.clear();
 		this.ip = 0;
-		this.xy = (y<<8)|x;
+		this.xy = (this.y<<8)|this.x;
 		// push media context
 		this.pushmedia();
 		// loop
-		while(this.terminate!=1)
-		{
-			this.execOne();
-			this.ip++;
-		}
+		this.exec();
 		if(this.mode==0)
 		{
 			// run audio, too
@@ -391,8 +391,18 @@ function Parser()
 						if(t>=0) this.parsedCode[t] = new Array(4,chr,j);
 						this.parsedCode[j] = new Array(1,a);
 						break;
+					case 118:
+						var b = this.code[i+1].charCodeAt(0);
+						if(b==118)
+						{
+							this.parsedCode[j] = new Array(1,128);
+							i++;
+						}
+						else this.parsedCode[j] = new Array(1,a);	
+						break;
 					default:
 						this.parsedCode[j] = new Array(1,a);
+						break;
 				}
 				i++;
 				j++;
@@ -581,6 +591,10 @@ function Parser()
 						case 86:
 							this.rstack.push(this.rol16(this.ip+1));
 							this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
+							break;
+						// Special
+						case 128: // Double trirot
+							this.stack.trirot2();
 							break;
 						default:
 							break;
