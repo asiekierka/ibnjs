@@ -102,6 +102,8 @@ function Stack (len)
 function Memory ()
 {
 	this.mem = new Array(1024*1024);
+	// 0xC8000-0xCFFFF - return stacks
+	// 0xD0000-0xFFFFF - stacks
 	this.get = function(addr){
 		if(addr<0xC8000)
 			return this.mem[addr&1048575];
@@ -246,6 +248,7 @@ function Parser()
 		{
 			// run audio, too
 			this.videoout = this.stack.pop();
+			// No audio code yet!
 			/*
 			this.mode=1;
 			this.terminate = 0;
@@ -463,6 +466,22 @@ function Parser()
 				break;
 			case 'J':
 				this.ip = this.stack.pop()-1;
+				break;
+			case '[':
+				this.rstack.push(this.ip+1);
+				break;
+			case ']':
+				if(this.stack.pop()!=0) this.ip=this.rstack.gettop(0)-1;
+				else this.rstack.pop();
+				break;
+			case 'X':
+				this.rstack.push(this.stack.pop());
+				this.rstack.push(this.ip+1);
+				break;
+			case 'L':
+				a=this.rstack.gettop(-1)-1;
+				this.rstack.puttop(-1,a);
+				if(a!=0) this.ip=this.rstack.gettop(0)-1;
 				break;
 			default:
 				break;
