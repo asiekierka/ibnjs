@@ -6,7 +6,8 @@
 Why u no canvas
 </canvas><br>
 <form>
-	<input type="text" id="code" style="width: 256px">
+	<input type="text" id="code" style="width: 256px"><br>
+<input type="checkbox" id="pause">Pause <input type="button" onclick="loadFileURL()" value="Load...">
 </form>
 <b>IMPLEMENTED:</b> Arithmetic, stack, memory, if/then/endif<br>
 <div id="fps"><b>FPS:</b> [implementing, give me a second]</div>
@@ -39,13 +40,13 @@ function Stack (len)
 		return this.stack[addr&4095];
 	}
 	this.gettop = function(addr) {
-		return this.stack[(this.pos-addr)&4095];
+		return this.stack[(this.pos+addr)&4095];
 	}
 	this.put = function(addr,v) {
 		this.stack[addr&4095]=v|0;
 	}
 	this.puttop = function(addr,v) {
-		this.stack[(this.pos-addr)&4095]=v|0;
+		this.stack[(this.pos+addr)&4095]=v|0;
 	}
 	this.clear = function(){
 		this.pos=-1;
@@ -173,10 +174,14 @@ function ALU ()
 	this.iszero = function(a){
 		return a==0?1:0;
 	}
-	this.shl = function(a){
+	this.shl = function(a,b){
 		var steps = (a>>16)&63;
 		if(steps<32) return b<<steps;
 		else return b>>(steps-32);
+	}
+	this.rol = function(a,b){
+		var steps = (a>>16)&31;
+		return ((b<<steps)|(b>>>(32-steps)));
 	}
 	this.ror = function(a,b){
 		var steps = (a>>16)&31;
@@ -275,12 +280,10 @@ function Parser()
 		// push media context
 		this.pushmedia();
 		// loop
-		var cycles = 0;
-		while(this.terminate!=1 && cycles<5000)
+		while(this.terminate!=1)
 		{
 			this.execOne();
 			this.ip++;
-			cycles++;
 		}
 		if(this.stack.pos>0) this.stackmode = 1;
 	}
@@ -418,18 +421,18 @@ function Parser()
 				this.stack.pop();
 				break;
 			case ')':
-				this.stack.push(this.stack.get(this.stack.pop()));
+				this.stack.push(this.stack.gettop(0-this.rol16(this.stack.pop())));
 				break;
 			case '(':
-				a = this.stack.pop();
-				this.stack.put(a,this.stack.pop());1
+				a = this.rol16(this.stack.pop());
+				this.stack.puttop(0-a,this.stack.pop());
 				break;
 			// Memory!
 			case '@':
-				this.stack.push(this.mem.get(this.stack.pop()));
+				this.stack.push(this.mem.get(this.rol16(this.stack.pop())));
 				break;
 			case '!':
-				a = this.stack.pop();
+				a = this.rol16(this.stack.pop());
 				this.mem.put(a,this.stack.pop());
 				break;
 			case '?':
@@ -467,27 +470,28 @@ function Parser()
 				this.stack.push(this.rstack.gettop(-3));
 				break;
 			case 'J':
-				this.ip = this.stack.pop()-1;
+				this.ip = this.rol16(this.stack.pop())-1;
 				break;
 			case '[':
-				this.rstack.push(this.ip+1);
+				this.rstack.push(this.rol16(this.ip+1));
 				break;
 			case ']':
-				if(this.stack.pop()!=0) this.ip=this.rstack.gettop(0)-1;
+				if(this.stack.pop()!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
 				else this.rstack.pop();
 				break;
 			case 'X':
 				this.rstack.push(this.stack.pop());
-				this.rstack.push(this.ip+1);
+				this.rstack.push(this.rol16(this.ip+1));
 				break;
 			case 'L':
-				a=this.rstack.gettop(-1)-1;
+				a=this.rstack.gettop(-1)-(1<<16);
 				this.rstack.puttop(-1,a);
-				if(a!=0) this.ip=this.rstack.gettop(0)-1;
+				if(a!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
+				else { this.rstack.pop(); this.rstack.pop(); }
 				break;
 			// Subroutines
 			case '{':
-				this.mem.put(this.stack.pop(),this.ip+1);
+				this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
 				while(chr!='}' && this.terminate==0)
 				{
 					if(this.ip>=this.code.length) this.terminate=1;
@@ -496,11 +500,11 @@ function Parser()
 				}
 				break;
 			case '}':
-				this.ip = this.rstack.pop()-1;
+				this.ip = this.rol16(this.rstack.pop())-1;
 				break;
 			case 'V':
-				this.rstack.push(this.ip+1);
-				this.ip = this.mem.get(this.stack.pop())-1;
+				this.rstack.push(this.rol16(this.ip+1));
+				this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
 				break;
 			default:
 				break;
@@ -515,6 +519,7 @@ p.load(runningCode);
 p.t=0;
 var codeEdit = document.getElementById("code");
 var fpsField = document.getElementById("fps");
+var pause = document.getElementById("pause");
 function clamp(a)
 {
 	if(a<0) return 0;
@@ -523,43 +528,68 @@ function clamp(a)
 }
 function derp()
 {
-	var idd = c.createImageData(256,256);
-	var id = idd.data;
-	var imgpos = 0;
-	for(y=0;y<256;y++)
+	if(!pause.checked)
 	{
-		p.y=y;
-		for(x=0;x<256;x+=2)
+		var idd = c.createImageData(256,256);
+		var id = idd.data;
+		var imgpos = 0;
+		var cy = 0;
+		var cu = 0;
+		var cv = 0;
+		for(y=0;y<256;y++)
 		{
-			p.x=x;
-			p.run();
-			var cy = ((p.videoout>>>8)&255);
-			var cu = (((p.videoout>>>16)&255)^0x80)-128;
-			var cv = (((p.videoout>>>24)&255)^0x80)-128;
-			id[imgpos++] = clamp((298*cy + 409*cv + 128)>>8);
-			id[imgpos++] = clamp((298*cy - 100*cu - 208*cv + 128)>>8);
-			id[imgpos++] = clamp((298*cy + 516*cu + 128)>>8);
-			id[imgpos++] = 255;
-			id[imgpos++] = clamp((298*cy + 409*cv + 128)>>8);
-			id[imgpos++] = clamp((298*cy - 100*cu - 208*cv + 128)>>8);
-			id[imgpos++] = clamp((298*cy + 516*cu + 128)>>8);
-			id[imgpos++] = 255;
+			p.y=y;
+			for(x=0;x<256;x++)
+			{
+				p.x=x;
+				p.run();
+				cy = ((p.videoout>>>8)&255);
+				cu = (((p.videoout>>>16)&255)^0x80)-128;
+				cv = (((p.videoout>>>24)&255)^0x80)-128;
+				id[imgpos++] = clamp((298*cy + 409*cv + 128)>>8);
+				id[imgpos++] = clamp((298*cy - 100*cu - 208*cv + 128)>>8);
+				id[imgpos++] = clamp((298*cy + 516*cu + 128)>>8);
+				id[imgpos++] = 255;
+			}
+		}
+		p.configureStackmode();
+		var newloop = new Date;
+		var fps = 1000 / (newloop - oldloop);
+		oldloop=newloop;
+		p.t+=Math.round(30/fps);
+		c.putImageData(idd,0,0);
+		fpsField.childNodes[1].nodeValue=fps.toFixed(2);
+		if(runningCode!=codeEdit.value)
+		{
+			p.t=0;
+			runningCode=codeEdit.value;
+			p.load(runningCode);
+			console.log("NEW CODE LOADED");
 		}
 	}
-	c.putImageData(idd,0,0);
-    var newloop = new Date;
-    var fps = 1000 / (newloop - oldloop);
-	p.t+=Math.round(30/fps);
-	oldloop=newloop;
-	fpsField.childNodes[1].nodeValue=fps.toFixed(2);
-	if(runningCode!=codeEdit.value)
-	{
-		p.t=0;
-		runningCode=codeEdit.value;
-		p.load(runningCode);
-		console.log("NEW CODE LOADED");
-	}
 	setTimeout("derp()",10); // give the browser time to not lag the whole computer
+}
+function loadFileURL()
+{
+	var url = prompt("Please input an URL","");
+	var http = createRequestObject();
+	function createRequestObject() { // http://www.openhosting.co.uk/articles/webdev/5899/
+		var objAjax;
+		var browser = navigator.appName;
+		if(browser == "Microsoft Internet Explorer"){
+			objAjax = new ActiveXObject("Microsoft.XMLHTTP");
+		}else{
+			objAjax = new XMLHttpRequest();
+		}
+		return objAjax;
+	}
+	function updateFileURL() {
+		if(http.readyState == 4)
+			codeEdit.value=http.responseText;
+	}
+	http.open('get',url);
+	http.onreadystatechange = updateFileURL;
+	http.send(null);
 }
 derp();
 </script>
