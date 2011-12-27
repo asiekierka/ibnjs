@@ -10,7 +10,7 @@ Why u no canvas
 <input type="checkbox" id="pause">Pause <input type="button" onclick="loadFileURL()" value="Load...">
 </form>
 <div id="fps"><b>FPS:</b> [implementing, give me a second]</div>
-<b>DEBUG:</b><br>
+<b>IBNIZ-js 0.4</b><br>
 <script type="text/javascript">
 /* This program is free software. It comes without any warranty, to
  * the extent permitted by applicable law. You can redistribute it
@@ -289,11 +289,11 @@ function Parser()
 	}
 	this.isImmop = function(ci)
 	{
-		return ((ci>=112 && ci<=115)||ci==43||ci==45||ci==42||ci==47||ci==37||ci==38||ci==124||ci==94||ci==108||ci==126||ci==97||ci==100);
+		return ((ci>=112 && ci<=115)||ci==43||ci==45||ci==42||ci==47||ci==37||ci==38||ci==124||ci==94||ci==108||ci==126||ci==97||ci==100||ci==40||ci==41||ci==74||ci==33||ci==64||ci==86||ci==88||ci==80);
 	}
 	this.isOpcode = function(ci)
 	{
-		return (this.isImmop(ci) || this.isLimm(ci) || ci==77||(ci>=118&&ci<=120)||ci==40||ci==41||ci==63||ci==33||ci==64||ci==58||ci==59||ci==80||ci==82||ci==84||ci==105||ci==106||ci==74||ci==91||ci==93||ci==88||ci==76||ci==123||ci==125||ci==86);
+		return (this.isImmop(ci) || this.isLimm(ci) || ci==77||(ci>=118&&ci<=120)||ci==63||ci==58||ci==59||ci==82||ci==84||ci==105||ci==106||ci==91||ci==93||ci==76||ci==123||ci==125);
 	}
 	this.compile = function()
 	{
@@ -342,6 +342,16 @@ function Parser()
 						case 126:
 							this.parsedCode[j] = new Array(2,this.alu.not(out)); 
 							break;
+						case 40:
+						case 41:
+							this.parsedCode[j] = new Array(3,0-this.rol16(out),a);
+							break;
+						case 74:
+						case 64:
+						case 33:
+						case 86:
+							this.parsedCode[j] = new Array(3,this.rol16(out),a);
+							break;
 						default:
 							this.parsedCode[j] = new Array(3,out,a);
 							break;
@@ -353,7 +363,44 @@ function Parser()
 			}
 			else if(this.isOpcode(a))
 			{
-				this.parsedCode[j] = new Array(1,a);
+				switch(a)
+				{
+					case 125:
+						var t = j;
+						var chr = 0;
+						while(chr!=123 && t>=0)
+						{
+							t--;
+							if(this.parsedCode[t] && this.parsedCode[t][0]==1) chr = this.parsedCode[t][1];
+						}
+						if(t>=0) this.parsedCode[t] = new Array(4,chr,j);
+						this.parsedCode[j] = new Array(1,a);
+						break;
+					case 58:
+						var t = j;
+						var chr = 0;
+						while(chr!=63 && t>=0)
+						{
+							t--;
+							if(this.parsedCode[t] && this.parsedCode[t][0]==1) chr = this.parsedCode[t][1];
+						}
+						if(t>=0) this.parsedCode[t] = new Array(4,chr,j);
+						this.parsedCode[j] = new Array(1,a);
+						break;
+					case 59:
+						var t = j;
+						var chr = 0;
+						while(chr!=58 && t>=0)
+						{
+							t--;
+							if(this.parsedCode[t] && this.parsedCode[t][0]==1) chr = this.parsedCode[t][1];
+						}
+						if(t>=0) this.parsedCode[t] = new Array(4,chr,j);
+						this.parsedCode[j] = new Array(1,a);
+						break;
+					default:
+						this.parsedCode[j] = new Array(1,a);
+				}
 				i++;
 				j++;
 			}
@@ -394,6 +441,22 @@ function Parser()
 		var cmd = this.parsedCode[this.ip];
 		switch(cmd[0])
 		{
+			case 4: // op+nextip
+				switch(cmd[1])
+				{
+					case 123:
+						this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
+						this.ip = cmd[2];
+						break;
+					case 63:
+						a = this.stack.pop();
+						if(a==0) this.ip = cmd[2];
+						break;
+					case 58:
+						this.ip = cmd[2];
+						break;
+				}
+				break;
 			case 3: // imm+op
 				switch(cmd[2])
 				{
@@ -442,6 +505,32 @@ function Parser()
 					case 100:
 						this.stack.push2(cmd[1]);
 						break;
+					case 40:
+						this.stack.puttop(cmd[1],this.stack.pop());
+						break;
+					case 41:
+						this.stack.push(this.stack.gettop(cmd[1]));
+						break;
+					case 74:
+						this.ip = cmd[1];
+						break;
+					case 64:
+						this.stack.push(this.mem.get(cmd[1]));
+						break;
+					case 33:
+						this.mem.put(cmd[1],this.stack.pop());
+						break;
+					case 86:
+						this.rstack.push(this.rol16(this.ip+1));
+						this.ip = this.rol16(this.mem.get(cmd[1]))-1;
+						break;
+					case 88:
+						this.rstack.push(cmd[1]);
+						this.rstack.push(this.rol16(this.ip+1));
+						break;
+					case 80:
+						this.rstack.push(cmd[1]);
+						break;
 					case 112:
 						break;
 				}
@@ -452,36 +541,7 @@ function Parser()
 			case 1: // op
 				var chr = cmd[1];
 				var a;
-				if(this.isLimm(chr))
-				{
-					// Loadimm!
-					var imm1 = 0; // number
-					var imm2 = 0; // fraction
-					var mode = 0; // number/fraction time?
-					a = chr; // char->int
-					while(this.isLimm(a) && this.terminate==0)
-					{
-						if(a==46) mode=1; // dot, time to switch modes!
-						else {
-							if(mode==0)
-							{
-								if(a>=48 && a<=57) imm1=(imm1<<4)|(a-48); // number, 0-9
-								else imm1=(imm1<<4)|(a-55); // fraction, A-F
-							}
-							else
-							{
-								if(a>=48 && a<=57) imm2=(imm2>>4)|((a-48)<<12); // fraction, 0-9
-								else imm2=(imm2>>4)|((a-55)<<12); // fraction, A-F
-							}
-						}
-						this.ip++; // increment IP
-						if(this.ip<this.parsedCode.length) a = this.getOp(this.ip); // char->int (checks for ip overrun)
-						else { a=0; this.terminate=1; } // ip overrun, derpit
-					}
-					this.stack.push(((imm1&65535)<<16)|(imm2&65535)); // combine and push
-					this.ip--; // decrement IP to be incremented by this.run
-				}
-				else switch(chr)
+				switch(chr)
 				{
 					// Math!
 					case 43:
@@ -585,26 +645,6 @@ function Parser()
 						a = this.rol16(this.stack.pop());
 						this.mem.put(a,this.stack.pop());
 						break;
-					case 63:
-						a = this.stack.pop();
-						if(a==0)
-						{
-							while(chr!=58 && this.terminate==0)
-							{
-								if(this.ip>=this.parsedCode.length) this.terminate=1;
-								else this.ip++;
-								chr = this.getOp(this.ip);
-							}
-						}
-						break;
-					case 58:
-						while(chr!=59 && this.terminate==0)
-						{
-							if(this.ip>=this.parsedCode.length) this.terminate=1;
-							else this.ip++;
-							chr = this.getOp(this.ip);
-						}
-						break;
 					// Return stack manipulation	
 					case 82:
 						this.stack.push(this.rstack.pop());
@@ -640,6 +680,14 @@ function Parser()
 						else { this.rstack.pop(); this.rstack.pop(); }
 						break;
 					// Subroutines
+					case 125:
+						this.ip = this.rol16(this.rstack.pop())-1;
+						break;
+					case 86:
+						this.rstack.push(this.rol16(this.ip+1));
+						this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
+						break;
+					// DEAD CODE left just in case something breaks
 					case 123:
 						this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
 						while(chr!=125 && this.terminate==0)
@@ -649,12 +697,25 @@ function Parser()
 							chr = this.getOp(this.ip);
 						}
 						break;
-					case 125:
-						this.ip = this.rol16(this.rstack.pop())-1;
+					case 63:
+						a = this.stack.pop();
+						if(a==0)
+						{
+							while(chr!=58 && this.terminate==0)
+							{
+								if(this.ip>=this.parsedCode.length) this.terminate=1;
+								else this.ip++;
+								chr = this.getOp(this.ip);
+							}
+						}
 						break;
-					case 86:
-						this.rstack.push(this.rol16(this.ip+1));
-						this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
+					case 58:
+						while(chr!=59 && this.terminate==0)
+						{
+							if(this.ip>=this.parsedCode.length) this.terminate=1;
+							else this.ip++;
+							chr = this.getOp(this.ip);
+						}
 						break;
 					default:
 						break;
