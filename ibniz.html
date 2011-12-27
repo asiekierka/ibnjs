@@ -112,17 +112,17 @@ function Memory ()
 		else if(addr>=0xD0000)
 			return this.stack.get(addr&0xFFFF);
 		else
-			return this.retstack.get(addr&0x3FFF);
+			return this.rstack.get(addr&0x3FFF);
 	}
 	this.put = function(addr,val){
 		if(addr<0xC8000)
-			this.mem[addr&1048575] = val;\
+			this.mem[addr&1048575] = val;
 		else if(addr>=0xE0000)
 			this.stack.put(addr&0x1FFFF,val);
 		else if(addr>=0xD0000)
 			this.stack.put(addr&0xFFFF,val);
 		else
-			this.retstack.put(addr&0x3FFF,val);
+			this.rstack.put(addr&0x3FFF,val);
 	}
 }
 function ALU ()
@@ -203,11 +203,11 @@ function Parser()
 	this.videoout = 0;
 	this.audioout = 0;
 	this.stack = new Stack(0x20000);
-	this.retstack = new Stack(0x4000);
+	this.rstack = new Stack(0x4000);
 	this.alu = new ALU();
 	this.mem = new Memory();
 	this.mem.stack = this.stack;
-	this.mem.retstack = this.retstack;
+	this.mem.rstack = this.rstack;
 	this.load = function(c)
 	{
 		this.code=c; this.configureStackmode();
@@ -275,10 +275,12 @@ function Parser()
 		// push media context
 		this.pushmedia();
 		// loop
-		while(this.terminate!=1)
+		var cycles = 0;
+		while(this.terminate!=1 && cycles<5000)
 		{
 			this.execOne();
 			this.ip++;
+			cycles++;
 		}
 		if(this.stack.pos>0) this.stackmode = 1;
 	}
@@ -483,6 +485,23 @@ function Parser()
 				this.rstack.puttop(-1,a);
 				if(a!=0) this.ip=this.rstack.gettop(0)-1;
 				break;
+			// Subroutines
+			case '{':
+				this.mem.put(this.stack.pop(),this.ip+1);
+				while(chr!='}' && this.terminate==0)
+				{
+					if(this.ip>=this.code.length) this.terminate=1;
+					else this.ip++;
+					chr = this.code[this.ip];
+				}
+				break;
+			case '}':
+				this.ip = this.rstack.pop()-1;
+				break;
+			case 'V':
+				this.rstack.push(this.ip+1);
+				this.ip = this.mem.get(this.stack.pop())-1;
+				break;
 			default:
 				break;
 		}
@@ -510,13 +529,17 @@ function derp()
 	for(y=0;y<256;y++)
 	{
 		p.y=y;
-		for(x=0;x<256;x++)
+		for(x=0;x<256;x+=2)
 		{
 			p.x=x;
 			p.run();
 			var cy = ((p.videoout>>>8)&255);
 			var cu = (((p.videoout>>>16)&255)^0x80)-128;
 			var cv = (((p.videoout>>>24)&255)^0x80)-128;
+			id[imgpos++] = clamp((298*cy + 409*cv + 128)>>8);
+			id[imgpos++] = clamp((298*cy - 100*cu - 208*cv + 128)>>8);
+			id[imgpos++] = clamp((298*cy + 516*cu + 128)>>8);
+			id[imgpos++] = 255;
 			id[imgpos++] = clamp((298*cy + 409*cv + 128)>>8);
 			id[imgpos++] = clamp((298*cy - 100*cu - 208*cv + 128)>>8);
 			id[imgpos++] = clamp((298*cy + 516*cu + 128)>>8);
