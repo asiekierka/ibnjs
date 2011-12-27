@@ -9,7 +9,6 @@ Why u no canvas
 	<input type="text" id="code" style="width: 256px"><br>
 <input type="checkbox" id="pause">Pause <input type="button" onclick="loadFileURL()" value="Load...">
 </form>
-<b>IMPLEMENTED:</b> Arithmetic, stack, memory, if/then/endif<br>
 <div id="fps"><b>FPS:</b> [implementing, give me a second]</div>
 <b>DEBUG:</b><br>
 <script type="text/javascript">
@@ -28,6 +27,13 @@ function Stack (len)
 	this.push = function(v){
 		if(this.pos==4095) return -1;
 		this.pos++;
+		this.stack[this.pos]=v|0;
+		return 0;
+	}
+	this.push2 = function(v){
+		if(this.pos>=4094) return -1;
+		this.pos+=2;
+		this.stack[this.pos-1]=v|0;
 		this.stack[this.pos]=v|0;
 		return 0;
 	}
@@ -197,6 +203,7 @@ function ALU ()
 function Parser()
 {
 	this.code = "";
+	this.parsedCode = new Array();
 	this.ip = 0;
 	this.t = 0;
 	this.x = 0;
@@ -215,7 +222,13 @@ function Parser()
 	this.mem.rstack = this.rstack;
 	this.load = function(c)
 	{
-		this.code=c; this.configureStackmode();
+		this.code=c;
+		this.parsedCode = new Array();
+		this.compile();
+		this.configureStackmode();
+	}
+	this.rol16 = function(b){
+		return ((b<<16)|(b>>>16));
 	}
 	this.pushmedia = function()
 	{
@@ -269,6 +282,84 @@ function Parser()
 		}
 		this.audioout = this.stack.pop();
 	}
+	this.isLimm = function(ci)
+	{
+		// is 0-9? A-F? .?
+		return ((ci>=48 && ci<=57) || (ci>=65 && ci<=70) || (ci==46));
+	}
+	this.isImmop = function(ci)
+	{
+		return ((ci>=112 && ci<=115)||ci==43||ci==45||ci==42||ci==47||ci==37||ci==38||ci==124||ci==94||ci==108||ci==126||ci==97||ci==100);
+	}
+	this.isOpcode = function(ci)
+	{
+		return (this.isImmop(ci) || this.isLimm(ci) || ci==77||(ci>=118&&ci<=120)||ci==40||ci==41||ci==63||ci==33||ci==64||ci==58||ci==59||ci==80||ci==82||ci==84||ci==105||ci==106||ci==74||ci==91||ci==93||ci==88||ci==76||ci==123||ci==125||ci==86);
+	}
+	this.compile = function()
+	{
+		var i = 0;
+		var j = 0;
+		while(i<this.code.length)
+		{
+			var a = this.code[i].charCodeAt(0);
+			if(this.isLimm(a))
+			{
+				// Loadimm!
+				var imm1 = 0; // number
+				var imm2 = 0; // fraction
+				var mode = 0; // number/fraction time?
+				while(this.isLimm(a) && i<this.code.length)
+				{
+					if(a==46) mode=1; // dot, time to switch modes!
+					else {
+						if(mode==0)
+						{
+							if(a>=48 && a<=57) imm1=(imm1<<4)|(a-48); // number, 0-9
+							else imm1=(imm1<<4)|(a-55); // fraction, A-F
+						}
+						else
+						{
+							if(a>=48 && a<=57) imm2=(imm2>>4)|((a-48)<<12); // fraction, 0-9
+							else imm2=(imm2>>4)|((a-55)<<12); // fraction, A-F
+						}
+					}
+					i++; // increment IP
+					if(i<this.code.length) a = this.code[i].charCodeAt(0); // char->int (checks for ip overrun)
+				}
+				if(i<this.code.length) a = this.code[i].charCodeAt(0);
+				else a=0;
+				var out = ((imm1&65535)<<16)|(imm2&65535);
+				if(this.isImmop(a))
+				{
+					switch(a)
+					{
+						case 115:
+							this.parsedCode[j] = new Array(2,this.alu.sin(out)); 
+							break;
+						case 113:
+							this.parsedCode[j] = new Array(2,this.alu.sqrt(out)); 
+							break;
+						case 126:
+							this.parsedCode[j] = new Array(2,this.alu.not(out)); 
+							break;
+						default:
+							this.parsedCode[j] = new Array(3,out,a);
+							break;
+					}
+					i++;
+				}
+				else this.parsedCode[j] = new Array(2,out);
+				j++;
+			}
+			else if(this.isOpcode(a))
+			{
+				this.parsedCode[j] = new Array(1,a);
+				i++;
+				j++;
+			}
+			else i++;
+		}
+	}
 	this.configureStackmode = function()
 	{
 		// reset the machine
@@ -287,224 +378,287 @@ function Parser()
 		}
 		if(this.stack.pos>0) this.stackmode = 1;
 	}
-	this.isLimm = function(ci)
+	this.getOp = function(ip)
 	{
-		// is 0-9? A-F? .?
-		return ((ci>=48 && ci<=57) || (ci>=65 && ci<=70) || (ci==46));
+		var cmd = this.parsedCode[this.ip];
+		if(cmd[0]==1) return cmd[1];
 	}
 	this.execOne = function()
 	{
 		if(this.terminate==1) return;
-		if(this.ip>=this.code.length)
+		if(this.ip>=this.parsedCode.length)
 		{
 			this.terminate=1;
 			return;
 		}
-		var chr = this.code[this.ip];
-		var a;
-		if(this.isLimm(chr.charCodeAt(0)))
+		var cmd = this.parsedCode[this.ip];
+		switch(cmd[0])
 		{
-			// Loadimm!
-			var imm1 = 0; // number
-			var imm2 = 0; // fraction
-			var mode = 0; // number/fraction time?
-			a = this.code[this.ip].charCodeAt(0); // char->int
-			while(this.isLimm(a) && this.terminate==0)
-			{
-				if(a==46) mode=1; // dot, time to switch modes!
-				else {
-					if(mode==0)
-					{
-						if(a>=48 && a<=57) imm1=(imm1<<4)|(a-48); // number, 0-9
-						else imm1=(imm1<<4)|(a-55); // fraction, A-F
-					}
-					else
-					{
-						if(a>=48 && a<=57) imm2=(imm2>>4)|((a-48)<<12); // fraction, 0-9
-						else imm2=(imm2>>4)|((a-55)<<12); // fraction, A-F
-					}
-				}
-				this.ip++; // increment IP
-				if(this.ip<this.code.length) a = this.code[this.ip].charCodeAt(0); // char->int (checks for ip overrun)
-				else { a=0; this.terminate=1; } // ip overrun, derpit
-			}
-			this.stack.push(((imm1&65535)<<16)|(imm2&65535)); // combine and push
-			this.ip--; // decrement IP to be incremented by this.run
-		}
-		else switch(chr)
-		{
-			// Math!
-			case '+':
-				a = this.stack.pop();
-				this.stack.push(this.alu.add(a,this.stack.pop())); 
-				break;
-			case '-':
-				a = this.stack.pop();
-				this.stack.push(this.alu.sub(a,this.stack.pop())); 
-				break;
-			case '*':
-				a = this.stack.pop();
-				this.stack.push(this.alu.mul(a,this.stack.pop())); 
-				break;
-			case '/':
-				a = this.stack.pop();
-				this.stack.push(this.alu.div(a,this.stack.pop())); 
-				break;
-			case '%':
-				a = this.stack.pop();
-				this.stack.push(this.alu.mod(a,this.stack.pop())); 
-				break;
-			case '&':
-				a = this.stack.pop();
-				this.stack.push(this.alu.and(a,this.stack.pop())); 
-				break;
-			case '|':
-				a = this.stack.pop();
-				this.stack.push(this.alu.or(a,this.stack.pop())); 
-				break;
-			case '^':
-				a = this.stack.pop();
-				this.stack.push(this.alu.xor(a,this.stack.pop())); 
-				break;
-			case 'l':
-				a = this.stack.pop();
-				this.stack.push(this.alu.shl(a,this.stack.pop())); 
-				break;
-			case 'r':
-				a = this.stack.pop();
-				this.stack.push(this.alu.ror(a,this.stack.pop())); 
-				break;
-			case 'a':
-				a = this.stack.pop();
-				this.stack.push(this.alu.atan2(a,this.stack.pop())); 
-				break;
-			case 's':
-				this.stack.push(this.alu.sin(this.stack.pop())); 
-				break;
-			case 'q':
-				this.stack.push(this.alu.sqrt(this.stack.pop())); 
-				break;
-			case '<':
-				this.stack.push(this.alu.isneg(this.stack.pop())); 
-				break;
-			case '>':
-				this.stack.push(this.alu.ispos(this.stack.pop())); 
-				break;
-			case '=':
-				this.stack.push(this.alu.iszero(this.stack.pop())); 
-				break;
-			case '~':
-				this.stack.push(this.alu.not(this.stack.pop())); 
-				break;
-			// Exterior!
-			case 'M': // media context switch
-				this.mode=1;
-				this.videoout = this.stack.pop();
-				this.stack.clear();
-			case 'w': // where am I? well, where are you
-				this.pushmedia();
-				break;
-			case 'T':
-				this.terminate = 1;
-				break;
-			// Stack!
-			case 'd':
-				this.stack.dup();
-				break;
-			case 'x':
-				this.stack.exchange();
-				break;
-			case 'v':
-				this.stack.trirot();
-				break;
-			case 'p':
-				this.stack.pop();
-				break;
-			case ')':
-				this.stack.push(this.stack.gettop(0-this.rol16(this.stack.pop())));
-				break;
-			case '(':
-				a = this.rol16(this.stack.pop());
-				this.stack.puttop(0-a,this.stack.pop());
-				break;
-			// Memory!
-			case '@':
-				this.stack.push(this.mem.get(this.rol16(this.stack.pop())));
-				break;
-			case '!':
-				a = this.rol16(this.stack.pop());
-				this.mem.put(a,this.stack.pop());
-				break;
-			case '?':
-				a = this.stack.pop();
-				if(a==0)
+			case 3: // imm+op
+				switch(cmd[2])
 				{
-					while(chr!=":" && this.terminate==0)
+					case 43:
+						this.stack.push(this.alu.add(cmd[1],this.stack.pop())); 
+						break;
+					case 45:
+						this.stack.push(this.alu.sub(cmd[1],this.stack.pop())); 
+						break;
+					case 42:
+						this.stack.push(this.alu.mul(cmd[1],this.stack.pop())); 
+						break;
+					case 47:
+						this.stack.push(this.alu.div(cmd[1],this.stack.pop())); 
+						break;
+					case 37:
+						this.stack.push(this.alu.mod(cmd[1],this.stack.pop())); 
+						break;
+					case 38:
+						this.stack.push(this.alu.and(cmd[1],this.stack.pop())); 
+						break;
+					case 124:
+						this.stack.push(this.alu.or(cmd[1],this.stack.pop())); 
+						break;
+					case 94:
+						this.stack.push(this.alu.xor(cmd[1],this.stack.pop())); 
+						break;
+					case 108:
+						this.stack.push(this.alu.shl(cmd[1],this.stack.pop())); 
+						break;
+					case 114:
+						this.stack.push(this.alu.ror(cmd[1],this.stack.pop())); 
+						break;
+					case 97:
+						this.stack.push(this.alu.atan2(cmd[1],this.stack.pop())); 
+						break;
+					case 115:
+						this.stack.push(this.alu.sin(cmd[1])); 
+						break;
+					case 113:
+						this.stack.push(this.alu.sqrt(cmd[1])); 
+						break;
+					case 126:
+						this.stack.push(this.alu.not(cmd[1])); 
+						break;
+					case 100:
+						this.stack.push2(cmd[1]);
+						break;
+					case 112:
+						break;
+				}
+				break;
+			case 2: // imm
+				this.stack.push(cmd[1]);
+				break;
+			case 1: // op
+				var chr = cmd[1];
+				var a;
+				if(this.isLimm(chr))
+				{
+					// Loadimm!
+					var imm1 = 0; // number
+					var imm2 = 0; // fraction
+					var mode = 0; // number/fraction time?
+					a = chr; // char->int
+					while(this.isLimm(a) && this.terminate==0)
 					{
-						if(this.ip>=this.code.length) this.terminate=1;
-						else this.ip++;
-						chr = this.code[this.ip];
+						if(a==46) mode=1; // dot, time to switch modes!
+						else {
+							if(mode==0)
+							{
+								if(a>=48 && a<=57) imm1=(imm1<<4)|(a-48); // number, 0-9
+								else imm1=(imm1<<4)|(a-55); // fraction, A-F
+							}
+							else
+							{
+								if(a>=48 && a<=57) imm2=(imm2>>4)|((a-48)<<12); // fraction, 0-9
+								else imm2=(imm2>>4)|((a-55)<<12); // fraction, A-F
+							}
+						}
+						this.ip++; // increment IP
+						if(this.ip<this.parsedCode.length) a = this.getOp(this.ip); // char->int (checks for ip overrun)
+						else { a=0; this.terminate=1; } // ip overrun, derpit
 					}
+					this.stack.push(((imm1&65535)<<16)|(imm2&65535)); // combine and push
+					this.ip--; // decrement IP to be incremented by this.run
 				}
-				break;
-			case ':':
-				while(chr!=";" && this.terminate==0)
+				else switch(chr)
 				{
-					if(this.ip>=this.code.length) this.terminate=1;
-					else this.ip++;
-					chr = this.code[this.ip];
+					// Math!
+					case 43:
+						a = this.stack.pop();
+						this.stack.push(this.alu.add(a,this.stack.pop())); 
+						break;
+					case 45:
+						a = this.stack.pop();
+						this.stack.push(this.alu.sub(a,this.stack.pop())); 
+						break;
+					case 42:
+						a = this.stack.pop();
+						this.stack.push(this.alu.mul(a,this.stack.pop())); 
+						break;
+					case 47:
+						a = this.stack.pop();
+						this.stack.push(this.alu.div(a,this.stack.pop())); 
+						break;
+					case 37:
+						a = this.stack.pop();
+						this.stack.push(this.alu.mod(a,this.stack.pop())); 
+						break;
+					case 38:
+						a = this.stack.pop();
+						this.stack.push(this.alu.and(a,this.stack.pop())); 
+						break;
+					case 124:
+						a = this.stack.pop();
+						this.stack.push(this.alu.or(a,this.stack.pop())); 
+						break;
+					case 94:
+						a = this.stack.pop();
+						this.stack.push(this.alu.xor(a,this.stack.pop())); 
+						break;
+					case 108:
+						a = this.stack.pop();
+						this.stack.push(this.alu.shl(a,this.stack.pop())); 
+						break;
+					case 114:
+						a = this.stack.pop();
+						this.stack.push(this.alu.ror(a,this.stack.pop())); 
+						break;
+					case 97:
+						a = this.stack.pop();
+						this.stack.push(this.alu.atan2(a,this.stack.pop())); 
+						break;
+					case 115:
+						this.stack.push(this.alu.sin(this.stack.pop())); 
+						break;
+					case 113:
+						this.stack.push(this.alu.sqrt(this.stack.pop())); 
+						break;
+					case 60:
+						this.stack.push(this.alu.isneg(this.stack.pop())); 
+						break;
+					case 62:
+						this.stack.push(this.alu.ispos(this.stack.pop())); 
+						break;
+					case 61:
+						this.stack.push(this.alu.iszero(this.stack.pop())); 
+						break;
+					case 126:
+						this.stack.push(this.alu.not(this.stack.pop())); 
+						break;
+					// Exterior!
+					case 77: // media context switch
+						this.mode=1;
+						this.videoout = this.stack.pop();
+						this.stack.clear();
+					case 119: // where am I? well, where are you
+						this.pushmedia();
+						break;
+					case 84:
+						this.terminate = 1;
+						break;
+					// Stack!
+					case 100:
+						this.stack.dup();
+						break;
+					case 120:
+						this.stack.exchange();
+						break;
+					case 118:
+						this.stack.trirot();
+						break;
+					case 112:
+						this.stack.pop();
+						break;
+					case 41:
+						this.stack.push(this.stack.gettop(0-this.rol16(this.stack.pop())));
+						break;
+					case 40:
+						a = this.rol16(this.stack.pop());
+						this.stack.puttop(0-a,this.stack.pop());
+						break;
+					// Memory!
+					case 64:
+						this.stack.push(this.mem.get(this.rol16(this.stack.pop())));
+						break;
+					case 33:
+						a = this.rol16(this.stack.pop());
+						this.mem.put(a,this.stack.pop());
+						break;
+					case 63:
+						a = this.stack.pop();
+						if(a==0)
+						{
+							while(chr!=58 && this.terminate==0)
+							{
+								if(this.ip>=this.parsedCode.length) this.terminate=1;
+								else this.ip++;
+								chr = this.getOp(this.ip);
+							}
+						}
+						break;
+					case 58:
+						while(chr!=59 && this.terminate==0)
+						{
+							if(this.ip>=this.parsedCode.length) this.terminate=1;
+							else this.ip++;
+							chr = this.getOp(this.ip);
+						}
+						break;
+					// Return stack manipulation	
+					case 82:
+						this.stack.push(this.rstack.pop());
+						break;
+					case 80:
+						this.rstack.push(this.stack.pop());
+						break;
+					// Loops
+					case 105:
+						this.stack.push(this.rstack.gettop(-1));
+						break;
+					case 106:
+						this.stack.push(this.rstack.gettop(-3));
+						break;
+					case 74:
+						this.ip = this.rol16(this.stack.pop())-1;
+						break;
+					case 91:
+						this.rstack.push(this.rol16(this.ip+1));
+						break;
+					case 93:
+						if(this.stack.pop()!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
+						else this.rstack.pop();
+						break;
+					case 88:
+						this.rstack.push(this.stack.pop());
+						this.rstack.push(this.rol16(this.ip+1));
+						break;
+					case 76:
+						a=this.rstack.gettop(-1)-(1<<16);
+						this.rstack.puttop(-1,a);
+						if(a!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
+						else { this.rstack.pop(); this.rstack.pop(); }
+						break;
+					// Subroutines
+					case 123:
+						this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
+						while(chr!=125 && this.terminate==0)
+						{
+							if(this.ip>=this.parsedCode.length) this.terminate=1;
+							else this.ip++;
+							chr = this.getOp(this.ip);
+						}
+						break;
+					case 125:
+						this.ip = this.rol16(this.rstack.pop())-1;
+						break;
+					case 86:
+						this.rstack.push(this.rol16(this.ip+1));
+						this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
+						break;
+					default:
+						break;
 				}
-				break;
-			// Return stack manipulation	
-			case 'R':
-				this.stack.push(this.rstack.pop());
-				break;
-			case 'P':
-				this.rstack.push(this.stack.pop());
-				break;
-			// Loops
-			case 'i':
-				this.stack.push(this.rstack.gettop(-1));
-				break;
-			case 'j':
-				this.stack.push(this.rstack.gettop(-3));
-				break;
-			case 'J':
-				this.ip = this.rol16(this.stack.pop())-1;
-				break;
-			case '[':
-				this.rstack.push(this.rol16(this.ip+1));
-				break;
-			case ']':
-				if(this.stack.pop()!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
-				else this.rstack.pop();
-				break;
-			case 'X':
-				this.rstack.push(this.stack.pop());
-				this.rstack.push(this.rol16(this.ip+1));
-				break;
-			case 'L':
-				a=this.rstack.gettop(-1)-(1<<16);
-				this.rstack.puttop(-1,a);
-				if(a!=0) this.ip=this.rol16(this.rstack.gettop(0))-1;
-				else { this.rstack.pop(); this.rstack.pop(); }
-				break;
-			// Subroutines
-			case '{':
-				this.mem.put(this.rol16(this.stack.pop()),this.rol16(this.ip+1));
-				while(chr!='}' && this.terminate==0)
-				{
-					if(this.ip>=this.code.length) this.terminate=1;
-					else this.ip++;
-					chr = this.code[this.ip];
-				}
-				break;
-			case '}':
-				this.ip = this.rol16(this.rstack.pop())-1;
-				break;
-			case 'V':
-				this.rstack.push(this.rol16(this.ip+1));
-				this.ip = this.rol16(this.mem.get(this.rol16(this.stack.pop())))-1;
 				break;
 			default:
 				break;
@@ -514,7 +668,7 @@ function Parser()
 var p = new Parser();
 var oldloop = new Date;
 var c = document.getElementById("ibniz").getContext("2d");
-var runningCode = ";";
+var runningCode = " ";
 p.load(runningCode);
 p.t=0;
 var codeEdit = document.getElementById("code");
