@@ -10,7 +10,7 @@ Why u no canvas
 <input type="checkbox" id="pause">Pause <input type="button" onclick="loadFileURL()" value="Load...">
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.5</b><br>
+<b>IBNIZ-js 0.6</b><br>
 <script type="text/javascript">
 /* This program is free software. It comes without any warranty, to
  * the extent permitted by applicable law. You can redistribute it
@@ -212,9 +212,100 @@ function Parser()
 	this.stack = new Stack(0x20000);
 	this.rstack = new Stack(0x4000);
 	this.alu = new ALU();
-	this.mem = new Memory();
-	this.mem.stack = this.stack;
-	this.mem.rstack = this.rstack;
+	//this.mem = new Memory();
+	this.mem = new Array(1024*1024);
+	// 0xC8000-0xCFFFF - return stacks
+	// 0xD0000-0xFFFFF - stacks
+	this.get = function(addr,val){
+		switch(addr>>15)
+		{
+			case 0:
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 5:
+			case 6:
+			case 7:
+			case 8:
+			case 9:
+			case 10:
+			case 11:
+			case 12:
+			case 13:
+			case 14:
+			case 15:
+			case 16:
+			case 17:
+			case 18:
+			case 19:
+			case 20:
+			case 21:
+			case 22:
+			case 23:
+			case 24:
+				return this.mem[addr];
+				break;
+			case 25:
+				return this.rstack.get(addr&0x3FFF);
+				break;
+			case 26:
+			case 27:
+				return this.stack.get(addr&0xFFFF);
+				break;
+			case 28:
+			case 29:
+			case 30:
+			case 31:
+				return this.stack.get(addr&0x1FFFF);
+				break;
+		}
+	}
+	this.put = function(addr,val){
+		switch(addr>>15)
+		{
+			case 0:
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 5:
+			case 6:
+			case 7:
+			case 8:
+			case 9:
+			case 10:
+			case 11:
+			case 12:
+			case 13:
+			case 14:
+			case 15:
+			case 16:
+			case 17:
+			case 18:
+			case 19:
+			case 20:
+			case 21:
+			case 22:
+			case 23:
+			case 24:
+				this.mem[addr] = val;
+				break;
+			case 25:
+				this.rstack.put(addr&0x3FFF,val);
+				break;
+			case 26:
+			case 27:
+				this.stack.put(addr&0xFFFF,val);
+				break;
+			case 28:
+			case 29:
+			case 30:
+			case 31:
+				this.stack.put(addr&0x1FFFF,val);
+				break;
+		}
+	}
 	this.load = function(c)
 	{
 		this.code=c;
@@ -237,7 +328,7 @@ function Parser()
 					this.stack.stack.push(this.t<<16 | this.xy);
 					break;
 			}
-		else this.stack.push(this.alu.f2a(this.t));
+		else this.stack.push(this.t<<16);
 	}
 	this.run = function()
 	{
@@ -278,11 +369,11 @@ function Parser()
 	}
 	this.isImmop = function(ci)
 	{
-		return ((ci>=112 && ci<=115)||ci==43||ci==45||ci==42||ci==47||ci==37||ci==38||ci==124||ci==94||ci==108||ci==126||ci==97||ci==100||ci==40||ci==41||ci==74||ci==33||ci==64||ci==86||ci==88||ci==80);
+		return ((ci>=112 && ci<=115)||ci==43||ci==45||ci==42||ci==47||ci==37||ci==38||ci==124||ci==94||ci==108||ci==126||ci==97||ci==100||ci==40||ci==41||ci==74||ci==33||ci==64||ci==86||ci==88||ci==80||ci==123);
 	}
 	this.isOpcode = function(ci)
 	{
-		return (this.isImmop(ci) || this.isLimm(ci) || ci==77||(ci>=118&&ci<=120)||ci==63||ci==58||ci==59||ci==82||ci==84||ci==105||ci==106||ci==91||ci==93||ci==76||ci==123||ci==125);
+		return (this.isImmop(ci) || this.isLimm(ci) || ci==77||(ci>=118&&ci<=120)||ci==63||ci==58||ci==59||ci==82||ci==84||ci==105||ci==106||ci==91||ci==93||ci==76||ci==125);
 	}
 	this.compile = function()
 	{
@@ -331,15 +422,26 @@ function Parser()
 						case 126:
 							this.parsedCode[j] = new Array(2,this.alu.not(out)); 
 							break;
+						case 123:
+							this.parsedCode[j] = new Array(5,this.rol16(out)&1048575,123,0);
+							break;
 						case 40:
 						case 41:
 							this.parsedCode[j] = new Array(3,0-this.rol16(out),a);
 							break;
 						case 74:
-						case 64:
-						case 33:
 						case 86:
 							this.parsedCode[j] = new Array(3,this.rol16(out),a);
+							break;
+						case 64:
+							var addr = this.rol16(out)&1048575;
+							if(addr<0xC8000) this.parsedCode[j] = new Array(3,addr,128);
+							else this.parsedCode[j] = new Array(3,addr,a);
+							break;
+						case 33:
+							var addr = this.rol16(out)&1048575;
+							if(addr<0xC8000) this.parsedCode[j] = new Array(3,addr,129);
+							else this.parsedCode[j] = new Array(3,addr,a);
 							break;
 						default:
 							this.parsedCode[j] = new Array(3,out,a);
@@ -361,8 +463,14 @@ function Parser()
 						{
 							t--;
 							if(this.parsedCode[t] && this.parsedCode[t][0]==1) chr = this.parsedCode[t][1];
+							else if(this.parsedCode[t] && this.parsedCode[t][0]==5) chr = this.parsedCode[t][2];
 						}
-						if(t>=0) this.parsedCode[t] = new Array(4,chr,j);
+						if(t>=0)
+						{
+							if(this.parsedCode[t] && this.parsedCode[t][0]==5)
+								this.parsedCode[t] = new Array(5,this.parsedCode[t][1],chr,j);
+							else this.parsedCode[t] = new Array(4,chr,j);
+						}
 						this.parsedCode[j] = new Array(1,a);
 						break;
 					case 58:
@@ -490,7 +598,7 @@ function Parser()
 							this.stack.push(Math.atan2(a,this.stack.stack.pop())*(65536/(2*Math.PI))); 
 							break;
 						case 115:
-							this.stack.push(this.alu.sin(this.stack.stack.pop())); 
+							this.stack.push(Math.sin(this.stack.stack.pop()*(2*Math.PI/65536))*65536); 
 							break;
 						case 113:
 							this.stack.push(this.alu.sqrt(this.stack.stack.pop())); 
@@ -540,11 +648,11 @@ function Parser()
 							break;
 						// Memory!
 						case 64:
-							this.stack.push(this.mem.get(this.rol16(this.stack.stack.pop())));
+							this.stack.push(this.get(this.rol16(this.stack.stack.pop())&1048575));
 							break;
 						case 33:
 							a = this.rol16(this.stack.stack.pop());
-							this.mem.put(a,this.stack.stack.pop());
+							this.put(a&1048575,this.stack.stack.pop());
 							break;
 						// Return stack manipulation	
 						case 82:
@@ -586,7 +694,7 @@ function Parser()
 							break;
 						case 86:
 							this.rstack.stack.push(this.rol16(this.ip+1));
-							this.ip = this.rol16(this.mem.get(this.rol16(this.stack.stack.pop())))-1;
+							this.ip = this.rol16(this.get(this.rol16(this.stack.stack.pop())&1048575))-1;
 							break;
 						// Special
 						case 128: // Double trirot
@@ -596,11 +704,20 @@ function Parser()
 							break;
 					}
 					break;
+				case 5: // imm+op+nextip
+					switch(cmd[2])
+					{
+						case 123:
+							this.put(cmd[1],this.rol16(this.ip+1));
+							this.ip = cmd[3];
+							break;
+					}
+					break;
 				case 4: // op+nextip
 					switch(cmd[1])
 					{
 						case 123:
-							this.mem.put(this.rol16(this.stack.stack.pop()),this.rol16(this.ip+1));
+							this.put(this.rol16(this.stack.stack.pop())&1048575,this.rol16(this.ip+1));
 							this.ip = cmd[2];
 							break;
 						case 63:
@@ -670,14 +787,14 @@ function Parser()
 							this.ip = cmd[1];
 							break;
 						case 64:
-							this.stack.stack.push(this.mem.get(cmd[1]));
+							this.stack.stack.push(this.get(cmd[1]));
 							break;
 						case 33:
-							this.mem.put(cmd[1],this.stack.stack.pop());
+							this.put(cmd[1],this.stack.stack.pop());
 							break;
 						case 86:
 							this.rstack.stack.push(this.rol16(this.ip+1));
-							this.ip = this.rol16(this.mem.get(cmd[1]))-1;
+							this.ip = this.rol16(this.get(cmd[1]))-1;
 							break;
 						case 88:
 							this.rstack.stack.push(cmd[1]);
@@ -687,6 +804,13 @@ function Parser()
 							this.rstack.stack.push(cmd[1]);
 							break;
 						case 112:
+							break;
+						// special
+						case 128: // direct load
+							this.stack.stack.push(this.mem[cmd[1]]);
+							break;
+						case 129: // direct store
+							this.mem[cmd[1]]=this.stack.stack.pop();
 							break;
 					}
 					break;
