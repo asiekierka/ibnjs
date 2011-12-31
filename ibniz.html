@@ -750,9 +750,9 @@ function Parser(simpleGetPut,useAudio)
 			this.useFFAudio = true;
 		}
 	}
-	else if(typeof AudioContext == "function")
+	if(typeof webkitAudioContext !== 'undefined')
 	{
-		this.audioCtx = new AudioContext();
+		this.audioCtx = new webkitAudioContext();
 		this.audioSR = this.audioCtx.sampleRate/60;
 		this.useChromeAudio = true;
 	}
