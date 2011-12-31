@@ -741,7 +741,7 @@ function Parser(simpleGetPut,useAudio)
 	this.useFFAudio = false;
 	this.useChromeAudio = false;
 	this.buffer = new Float32Array(512);
-	if(Audio)
+	if(typeof(Audio) !== 'undefined')
 	{
 		this.audioOut = new Audio();
 		if(this.audioOut.mozSetup)
@@ -750,7 +750,7 @@ function Parser(simpleGetPut,useAudio)
 			this.useFFAudio = true;
 		}
 	}
-	if(webkitAudioContext)
+	if(typeof(webkitAudioContext) !== 'undefined')
 	{
 		this.audioCtx = new webkitAudioContext();
 		this.audioSR = this.audioCtx.sampleRate/60;
