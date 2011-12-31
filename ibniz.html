@@ -265,7 +265,7 @@ function Parser(simpleGetPut,useAudio)
 				}
 			}
 		}
-		if(this.mode==1) this.audioout = this.stacka.pop();
+		if((this.useFFAudio || this.useChromeAudio) && this.useAudio && this.mode==1) this.audioout = this.stacka.pop();
 	}
 	this.isLimm = function(ci)
 	{
