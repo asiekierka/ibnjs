@@ -7,10 +7,11 @@ Why u no canvas
 </canvas><br>
 <form>
 	<input type="text" id="code" style="width: 256px"><br>
-<input type="checkbox" id="pause">Pause <input type="checkbox" id="simpleGetPut">Simple memory access
+<input type="checkbox" id="pause">Pause <input type="checkbox" id="simpleGetPut">Simple memory access<br>
+<input type="checkbox" id="useAudio">Audio (experimental, firefox/chrome/safari)
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.7a</b><br>
+<b>IBNIZ-js 0.8</b><br>
 <a href="https://github.com/asiekierka/ibnjs">Github repository</a><br>
 <a href="mailto:asiekierka@gmail.com">Contact</a><br>
 <script type="text/javascript">
@@ -67,7 +68,7 @@ Array.prototype.push2 = function(v){
 Array.prototype.dpush2 = function(v){
 	this.push(v|0,v|0);
 }
-function Parser(simpleGetPut)
+function Parser(simpleGetPut,useAudio)
 {
 	this.code = "";
 	this.parsedCode = new Array();
@@ -98,8 +99,9 @@ function Parser(simpleGetPut)
 		var steps = (a>>16)&31;
 		return ((b>>>steps)|(b<<(32-steps)));
 	}
-	this.config = function(simpleGetPut)
+	this.config = function(simpleGetPut,useAudio)
 	{
+		this.useAudio=useAudio;
 		if(simpleGetPut)
 		{
 			this.get = function(addr) { return this.mem[addr]; }
@@ -199,7 +201,7 @@ function Parser(simpleGetPut)
 			}
 		}
 	}
-	this.config(simpleGetPut);
+	this.config(simpleGetPut,useAudio);
 	this.load = function(c)
 	{
 		this.code=c;
@@ -215,11 +217,11 @@ function Parser(simpleGetPut)
 	this.pushmedia = function(x,y)
 	{
 		if(this.mode==0) this.compiledpm(x,y);
-		else this.stacka.push(this.t<<16);
+		else this.stacka.push(this.t<<16 | (y<<8) | x);
 	}
-	this.pmaudio = function()
+	this.pmaudio = function(x,y)
 	{
-		this.stacka.push(this.t<<16);
+		this.stacka.push(this.t<<16 | (y<<8) | x);
 	}
 	this.compilepushmedia = function()
 	{
@@ -248,19 +250,20 @@ function Parser(simpleGetPut)
 		{
 			// run audio, too
 			this.videoout = this.stacka.pop();
-			// No audio code yet!
-			/*
-			this.mode=1;
-			this.terminate = 0;
-			this.stack.clear();
-			this.ip = 0;
-			this.pmaudio();
-			while(this.terminate!=1)
+			if((this.useFFAudio || this.useChromeAudio) && this.useAudio && (x%128)==0) 
 			{
-				this.execOne();
-				this.ip++;
+				if(this.stackmode==1)
+					this.audioout=this.videoout; // same stack data, skip the processing bulk
+				else
+				{
+					this.mode=1;
+					this.terminate = 0;
+					this.stacka.length=0;
+					this.ip = 0;
+					this.pmaudio(x,y);
+					this.exec(x,y);
+				}
 			}
-			*/
 		}
 		if(this.mode==1) this.audioout = this.stacka.pop();
 	}
@@ -427,7 +430,7 @@ function Parser(simpleGetPut)
 		// push media context
 		this.pm0();
 		// loop
-		this.exec();
+		this.exec(0,0);
 		if(this.stacka.length>1) this.stackmode = 1;
 		this.compilepushmedia();
 	}
@@ -442,6 +445,7 @@ function Parser(simpleGetPut)
 	{
 		var cmd;
 		var a;
+		var stacka = this.stacka;
 		while(this.terminate!=1)
 		{
 			if(this.ip>=this.parsedCode.length)
@@ -457,78 +461,78 @@ function Parser(simpleGetPut)
 					{
 						// Math!
 						case 43:
-							a = this.stacka.pop();
-							this.stacka.dpush(a+this.stacka.pop()); 
+							a = stacka.pop();
+							stacka.dpush(a+stacka.pop()); 
 							break;
 						case 45:
-							a = this.stacka.pop();
-							this.stacka.dpush(this.stacka.pop()-a); 
+							a = stacka.pop();
+							stacka.dpush(stacka.pop()-a); 
 							break;
 						case 42:
-							a = this.stacka.pop();
-							this.stacka.dpush((a*this.stacka.pop())/65536); 
+							a = stacka.pop();
+							stacka.dpush((a*stacka.pop())/65536); 
 							break;
 						case 47:
-							a = this.stacka.pop();
-							this.stacka.dpush((this.stacka.pop()*65536)/a); 
+							a = stacka.pop();
+							stacka.dpush((stacka.pop()*65536)/a); 
 							break;
 						case 37:
-							a = this.stacka.pop();
-							this.stacka.push(this.stacka.pop()%a); 
+							a = stacka.pop();
+							stacka.push(stacka.pop()%a); 
 							break;
 						case 38:
-							a = this.stacka.pop();
-							this.stacka.push(a&this.stacka.pop()); 
+							a = stacka.pop();
+							stacka.push(a&stacka.pop()); 
 							break;
 						case 124:
-							a = this.stacka.pop();
-							this.stacka.push(a|this.stacka.pop()); 
+							a = stacka.pop();
+							stacka.push(a|stacka.pop()); 
 							break;
 						case 94:
-							a = this.stacka.pop();
-							this.stacka.push(a^this.stacka.pop()); 
+							a = stacka.pop();
+							stacka.push(a^stacka.pop()); 
 							break;
 						case 108:
-							var steps = (this.stacka.pop()>>16)&63;
-							a = this.stacka.pop();
-							this.stacka.push(steps<32 ? a<<steps : a>>(steps-32));
+							var steps = (stacka.pop()>>16)&63;
+							a = stacka.pop();
+							stacka.push(steps<32 ? a<<steps : a>>(steps-32));
 
 							break;
 						case 114:
-							var steps = (this.stacka.pop()>>16)&31;
-							a = this.stacka.pop();
-							this.stacka.push((a>>>steps)|(a<<(32-steps)));
+							var steps = (stacka.pop()>>16)&31;
+							a = stacka.pop();
+							stacka.push((a>>>steps)|(a<<(32-steps)));
 							break;
 						case 97:
-							a = this.stacka.pop();
-							this.stacka.dpush(Math.atan2(a,this.stacka.pop())*(65536/(2*Math.PI))); 
+							a = stacka.pop();
+							stacka.dpush(Math.atan2(a,stacka.pop())*(65536/(2*Math.PI))); 
 							break;
 						case 115:
-							this.stacka.dpush(Math.sin(this.stacka.pop()*(2*Math.PI/65536))*65536); 
+							stacka.dpush(Math.sin(stacka.pop()*(2*Math.PI/65536))*65536); 
 							break;
 						case 113:
-							a = this.stacka.pop();
-							this.stacka.dpush(0 > a ? 0 : 65536 * Math.sqrt(a / 65536)); 
+							a = stacka.pop();
+							stacka.dpush(0 > a ? 0 : 65536 * Math.sqrt(a / 65536)); 
 							break;
 						case 60:
-							a = this.stacka.pop();
-							this.stacka.push(0 > a ? a : 0); 
+							a = stacka.pop();
+							stacka.push(0 > a ? a : 0); 
 							break;
 						case 62:
-							a = this.stacka.pop();
-							this.stacka.push(0 < a ? a : 0); 
+							a = stacka.pop();
+							stacka.push(0 < a ? a : 0); 
 							break;
 						case 61:
-							this.stacka.push(this.stacka.pop()==0); 
+							stacka.push(stacka.pop()==0); 
 							break;
 						case 126:
-							this.stacka.push(~this.stacka.pop()); 
+							stacka.push(~stacka.pop()); 
 							break;
 						// Exterior!
 						case 77: // media context switch
 							this.mode=1;
-							this.videoout = this.stacka.pop();
-							this.stacka.clear();
+							this.videoout = stacka.pop();
+							stacka.clear();
 							this.pmaudio();
 							break;
 						case 119: // where am I? well, where are you
@@ -539,58 +543,58 @@ function Parser(simpleGetPut)
 							break;
 						// Stack!
 						case 100:
-							this.stacka.dup();
+							stacka.dup();
 							break;
 						case 120:
-							this.stacka.exchange();
+							stacka.exchange();
 							break;
 						case 118:
-							this.stacka.trirot();
+							stacka.trirot();
 							break;
 						case 112:
-							this.stacka.pop();
+							stacka.pop();
 							break;
 						case 41:
-							this.stacka.push(this.stacka.gettop(0-this.rol16(this.stacka.pop())));
+							stacka.push(stacka.gettop(0-this.rol16(stacka.pop())));
 							break;
 						case 40:
-							a = this.rol16(this.stacka.pop());
-							this.stacka.puttop(0-a,this.stacka.pop());
+							a = this.rol16(stacka.pop());
+							stacka.puttop(0-a,stacka.pop());
 							break;
 						// Memory!
 						case 64:
-							this.stacka.push(this.get(this.rol16(this.stacka.pop())&1048575));
+							stacka.push(this.get(this.rol16(stacka.pop())&1048575));
 							break;
 						case 33:
-							a = this.rol16(this.stacka.pop());
-							this.put(a&1048575,this.stacka.pop());
+							a = this.rol16(stacka.pop());
+							this.put(a&1048575,stacka.pop());
 							break;
 						// Return stack manipulation	
 						case 82:
-							this.stacka.push(this.rstacka.pop());
+							stacka.push(this.rstacka.pop());
 							break;
 						case 80:
-							this.rstacka.push(this.stacka.pop());
+							this.rstacka.push(stacka.pop());
 							break;
 						// Loops
 						case 105:
-							this.stacka.push(this.rstacka.gettop(-1));
+							stacka.push(this.rstacka.gettop(-1));
 							break;
 						case 106:
-							this.stacka.push(this.rstacka.gettop(-3));
+							stacka.push(this.rstacka.gettop(-3));
 							break;
 						case 74:
-							this.ip = this.rol16(this.stacka.pop())-1;
+							this.ip = this.rol16(stacka.pop())-1;
 							break;
 						case 91:
 							this.rstacka.push(this.rol16(this.ip+1));
 							break;
 						case 93:
-							if(this.stacka.pop()!=0) this.ip=this.rol16(this.rstacka.gettop(0))-1;
+							if(stacka.pop()!=0) this.ip=this.rol16(this.rstacka.gettop(0))-1;
 							else this.rstacka.pop();
 							break;
 						case 88:
-							this.rstacka.push(this.stacka.pop());
+							this.rstacka.push(stacka.pop());
 							this.rstacka.push(this.rol16(this.ip+1));
 							break;
 						case 76:
@@ -605,11 +609,11 @@ function Parser(simpleGetPut)
 							break;
 						case 86:
 							this.rstacka.push(this.rol16(this.ip+1));
-							this.ip = this.rol16(this.get(this.rol16(this.stacka.pop())&1048575))-1;
+							this.ip = this.rol16(this.get(this.rol16(stacka.pop())&1048575))-1;
 							break;
 						// Special
 						case 128: // Double trirot
-							this.stacka.trirot2();
+							stacka.trirot2();
 							break;
 						default:
 							break;
@@ -628,11 +632,11 @@ function Parser(simpleGetPut)
 					switch(cmd[1])
 					{
 						case 123:
-							this.put(this.rol16(this.stacka.pop())&1048575,this.rol16(this.ip+1));
+							this.put(this.rol16(stacka.pop())&1048575,this.rol16(this.ip+1));
 							this.ip = cmd[2];
 							break;
 						case 63:
-							a = this.stacka.pop();
+							a = stacka.pop();
 							if(a==0) this.ip = cmd[2];
 							break;
 						case 58:
@@ -644,64 +648,64 @@ function Parser(simpleGetPut)
 					switch(cmd[2])
 					{
 						case 43:
-							this.stacka.dpush(cmd[1]+this.stacka.pop()); 
+							stacka.dpush(cmd[1]+stacka.pop()); 
 							break;
 						case 45:
-							this.stacka.dpush(this.stacka.pop()-cmd[1]); 
+							stacka.dpush(stacka.pop()-cmd[1]); 
 							break;
 						case 42:
-							this.stacka.dpush((cmd[1]*this.stacka.pop())/65536);
+							stacka.dpush((cmd[1]*stacka.pop())/65536);
 							break;
 						case 47:
-							this.stacka.dpush((this.stacka.pop()*65536)/cmd[1]); 
+							stacka.dpush((stacka.pop()*65536)/cmd[1]); 
 							break;
 						case 37:
-							this.stacka.push(this.stacka.pop()%cmd[1]); 
+							stacka.push(stacka.pop()%cmd[1]); 
 							break;
 						case 38:
-							this.stacka.push(cmd[1]&this.stacka.pop()); 
+							stacka.push(cmd[1]&stacka.pop()); 
 							break;
 						case 124:
-							this.stacka.push(cmd[1]|this.stacka.pop()); 
+							stacka.push(cmd[1]|stacka.pop()); 
 							break;
 						case 94:
-							this.stacka.push(cmd[1]^this.stacka.pop()); 
+							stacka.push(cmd[1]^stacka.pop()); 
 							break;
 						case 108:
-							this.stacka.push(this.shl(cmd[1],this.stacka.pop())); 
+							stacka.push(this.shl(cmd[1],stacka.pop())); 
 							break;
 						case 114:
-							this.stacka.push(this.ror(cmd[1],this.stacka.pop())); 
+							stacka.push(this.ror(cmd[1],stacka.pop())); 
 							break;
 						case 97:
-							this.stacka.dpush(Math.atan2(cmd[1],this.stacka.pop())*(65536/(2*Math.PI))); 
+							stacka.dpush(Math.atan2(cmd[1],stacka.pop())*(65536/(2*Math.PI))); 
 							break;
 						case 115:
-							this.stacka.dpush(Math.sin(cmd[1]*(Math.PI/32768))*65536); 
+							stacka.dpush(Math.sin(cmd[1]*(Math.PI/32768))*65536); 
 							break;
 						case 113:
-							this.stacka.dpush(0 > cmd[1] ? 0 : 65536 * Math.sqrt(cmd[1] / 65536)); 
+							stacka.dpush(0 > cmd[1] ? 0 : 65536 * Math.sqrt(cmd[1] / 65536)); 
 							break;
 						case 126:
-							this.stacka.push(~cmd[1]); 
+							stacka.push(~cmd[1]); 
 							break;
 						case 100:
-							this.stacka.push2(cmd[1]);
+							stacka.push2(cmd[1]);
 							break;
 						case 40:
-							this.stacka.puttop(cmd[1],this.stacka.pop());
+							stacka.puttop(cmd[1],stacka.pop());
 							break;
 						case 41:
-							this.stacka.push(this.stacka.gettop(cmd[1]));
+							stacka.push(stacka.gettop(cmd[1]));
 							break;
 						case 74:
 							this.ip = cmd[1];
 							break;
 						case 64:
-							this.stacka.push(this.get(cmd[1]));
+							stacka.push(this.get(cmd[1]));
 							break;
 						case 33:
-							this.put(cmd[1],this.stacka.pop());
+							this.put(cmd[1],stacka.pop());
 							break;
 						case 86:
 							this.rstacka.push(this.rol16(this.ip+1));
@@ -718,15 +722,15 @@ function Parser(simpleGetPut)
 							break;
 						// special
 						case 128: // direct load
-							this.stacka.push(this.mem[cmd[1]]);
+							stacka.push(this.mem[cmd[1]]);
 							break;
 						case 129: // direct store
-							this.mem[cmd[1]]=this.stacka.pop();
+							this.mem[cmd[1]]=stacka.pop();
 							break;
 					}
 					break;
 				case 2: // imm
-					this.stacka.push(cmd[1]);
+					stacka.push(cmd[1]);
 					break;
 				default:
 					break;
@@ -734,7 +738,25 @@ function Parser(simpleGetPut)
 			this.ip++;
 		}
 	}
-	this.drawToCanvas = function(c)
+	this.useFFAudio = false;
+	this.useChromeAudio = false;
+	this.buffer = new Float32Array(512);
+	if(Audio)
+	{
+		this.audioOut = new Audio();
+		if(this.audioOut.mozSetup)
+		{
+			this.audioOut.mozSetup(1,512*60);
+			this.useFFAudio = true;
+		}
+	}
+	if(webkitAudioContext)
+	{
+		this.audioCtx = new webkitAudioContext();
+		this.audioSR = this.audioCtx.sampleRate/60;
+		this.useChromeAudio = true;
+	}
+	this.render = function(c)
 	{
 		var idd = c.createImageData(256,256);
 		var id = idd.data;
@@ -744,7 +766,20 @@ function Parser(simpleGetPut)
 		var cv = 0;
 		for(var y=0;y<256;y++)
 		{
-			for(var x=0;x<256;x++)
+			this.buffer[(y<<1)] = (((this.audioout&65535)^32768)-32768)/32768;
+			for(var x=0;x<128;x++)
+			{
+				this.run(x,y);
+				cy = (p.videoout>>>8)&255;
+				cu = (((p.videoout>>>16)&255)^0x80)-128;
+				cv = ((p.videoout>>>24)^0x80)-128;
+				id[imgpos++] = (298*cy + 409*cv + 128)>>8;
+				id[imgpos++] = (298*cy - 100*cu - 208*cv + 128)>>8;
+				id[imgpos++] = (298*cy + 516*cu + 128)>>8;
+				id[imgpos++] = 255;
+			}
+			this.buffer[(y<<1)+1] = (((this.audioout&65535)^32768)-32768)/32768;
+			for(var x=128;x<256;x++)
 			{
 				this.run(x,y);
 				cy = (p.videoout>>>8)&255;
@@ -757,9 +792,37 @@ function Parser(simpleGetPut)
 			}
 		}
 		c.putImageData(idd,0,0);
+		if(this.useFFAudio) this.audioOut.mozWriteAudio(this.buffer);
+		else if(this.useChromeAudio)
+		{
+			if(this.audioOut.noteOff) this.audioOut.noteOff(0);
+			this.fixbuffer = new Float32Array(this.audioSR);
+			for(var i=0;i<this.audioSR;i++)
+			{
+				this.fixbuffer[i]=this.buffer[Math.round(i*512/this.audioSR)];
+			}
+			this.aBuffer = this.audioCtx.createBuffer(1,this.audioSR,this.audioSR*60);
+			this.aBuffer.getChannelData(0).set(this.fixbuffer);
+			this.audioOut = this.audioCtx.createBufferSource();
+			this.audioOut.buffer=this.aBuffer;
+			this.audioOut.connect(this.audioCtx.destination);
+			this.audioOut.noteOn(0);
+			this.audioOut.loop = true;
+		}
+	}
+	this.delayAudio = function(a)
+	{
+		if(this.useFFAudio) for(var b=0; b<a; b++) this.audioOut.mozWriteAudio(this.buffer);
+/*		else if(this.useChromeAudio) for(var b=0; b<a; b++)
+		{
+			this.audioOut = this.audioCtx.createBufferSource();
+			this.audioOut.buffer=this.aBuffer;
+			this.audioOut.connect(this.audioCtx.destination);
+			this.audioOut.noteOn((b+1)/60);
+		}*/
 	}
 }
-var p = new Parser(true);
+var p = new Parser(false,false);
 var oldloop = new Date;
 var c = document.getElementById("ibniz").getContext("2d");
 var runningCode = " ";
@@ -769,17 +832,19 @@ var codeEdit = document.getElementById("code");
 var fpsField = document.getElementById("fps");
 var pause = document.getElementById("pause");
 var simpleGetPut = document.getElementById("simpleGetPut");
+var useAudio = document.getElementById("useAudio");
 function derp()
 {
 	if(!pause.checked)
 	{
-		p.drawToCanvas(c);
+		p.render(c);
 		var newloop = new Date;
 		var fps = 1000 / (newloop - oldloop);
 		oldloop=newloop;
-		p.t+=Math.round(30/fps);
+		p.t+=Math.round(60/fps);
+		p.delayAudio(Math.round(60/fps));
 		p.configureStackmode();
-		p.config(simpleGetPut.checked);
+		p.config(simpleGetPut.checked,useAudio.checked);
 		fpsField.childNodes[1].nodeValue=fps.toFixed(2);
 		if(runningCode!=codeEdit.value)
 		{
