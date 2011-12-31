@@ -12,7 +12,7 @@ Why u no canvas
 <input type="checkbox" id="recalcAudio">More accurate audio (slightly slower)
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.9</b><br>
+<b>IBNIZ-js 0.9a</b><br>
 <a href="https://github.com/asiekierka/ibnjs">Github repository</a><br>
 <a href="mailto:asiekierka@gmail.com">Contact</a><br>
 <script type="text/javascript">
@@ -529,7 +529,7 @@ function Parser(simpleGetPut,useAudio)
 							break;
 						// Exterior!
 						case 77: // media context switch
-							if(!this.mediaSwitch) this.terminate=1;
+							if(!this.mediaSwitch || !this.useAudio) this.terminate=1;
 							else
 							{
 								this.mode=1;
