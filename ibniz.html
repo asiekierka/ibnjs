@@ -11,7 +11,7 @@ Why u no canvas
 <input type="checkbox" id="useAudio">Audio (experimental, firefox/chrome/safari)
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.8</b><br>
+<b>IBNIZ-js 0.8a</b><br>
 <a href="https://github.com/asiekierka/ibnjs">Github repository</a><br>
 <a href="mailto:asiekierka@gmail.com">Contact</a><br>
 <script type="text/javascript">
@@ -741,7 +741,7 @@ function Parser(simpleGetPut,useAudio)
 	this.useFFAudio = false;
 	this.useChromeAudio = false;
 	this.buffer = new Float32Array(512);
-	if(typeof(Audio) !== 'undefined')
+	if(typeof Audio !== 'undefined')
 	{
 		this.audioOut = new Audio();
 		if(this.audioOut.mozSetup)
@@ -750,9 +750,9 @@ function Parser(simpleGetPut,useAudio)
 			this.useFFAudio = true;
 		}
 	}
-	if(typeof(webkitAudioContext) !== 'undefined')
+	else if(typeof AudioContext == "function")
 	{
-		this.audioCtx = new webkitAudioContext();
+		this.audioCtx = new AudioContext();
 		this.audioSR = this.audioCtx.sampleRate/60;
 		this.useChromeAudio = true;
 	}
@@ -854,7 +854,7 @@ function derp()
 			console.log("NEW CODE LOADED");
 		}
 	}
-	setTimeout("derp()",10); // give the browser time to not lag the whole computer
+	setTimeout("derp()",1); // give the browser time to not lag the whole computer
 }
 function loadFileURL()
 {
