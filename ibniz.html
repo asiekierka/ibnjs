@@ -12,7 +12,7 @@ Why u no canvas
 <input type="checkbox" id="recalcAudio">More accurate audio (slightly slower)
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.9a</b><br>
+<b>IBNIZ-js 0.9b</b><br>
 <a href="https://github.com/asiekierka/ibnjs">Github repository</a><br>
 <a href="mailto:asiekierka@gmail.com">Contact</a><br>
 <script type="text/javascript">
@@ -398,13 +398,16 @@ function Parser(simpleGetPut,useAudio)
 						this.parsedCode[j] = new Array(1,a);
 						break;
 					case 118:
-						var b = this.code[i+1].charCodeAt(0);
-						if(b==118)
+						this.parsedCode[j] = new Array(1,a);
+						if(i+1<this.code.length)
 						{
-							this.parsedCode[j] = new Array(1,128);
-							i++;
+							var b = this.code[i+1].charCodeAt(0);
+							if(b==118)
+							{
+								this.parsedCode[j] = new Array(1,128);
+								i++;
+							}
 						}
-						else this.parsedCode[j] = new Array(1,a);	
 						break;
 					default:
 						this.parsedCode[j] = new Array(1,a);
@@ -744,7 +747,7 @@ function Parser(simpleGetPut,useAudio)
 	this.useFFAudio = false;
 	this.useChromeAudio = false;
 	this.recalcAudio = false;
-	this.buffer = new Float32Array(512);
+	this.buffer = new Array(512);
 	if(typeof Audio !== 'undefined')
 	{
 		this.audioOut = new Audio();
@@ -752,6 +755,7 @@ function Parser(simpleGetPut,useAudio)
 		{
 			this.audioOut.mozSetup(1,512*60);
 			this.useFFAudio = true;
+			this.buffer = new Float32Array(512);
 		}
 	}
 	if(typeof webkitAudioContext !== 'undefined')
@@ -759,6 +763,7 @@ function Parser(simpleGetPut,useAudio)
 		this.audioCtx = new webkitAudioContext();
 		this.audioSR = this.audioCtx.sampleRate/60;
 		this.useChromeAudio = true;
+		this.buffer = new Float32Array(512);
 	}
 	this.render = function(c)
 	{
@@ -770,8 +775,7 @@ function Parser(simpleGetPut,useAudio)
 		var cv = 0;
 		for(var y=0;y<256;y++)
 		{
-			this.buffer[(y<<1)] = (((this.audioout&65535)^32768)-32768)/32768;
-			for(var x=0;x<128;x++)
+			for(var x=0;x<256;x++)
 			{
 				this.run(x,y);
 				cy = (p.videoout>>>8)&255;
@@ -781,18 +785,7 @@ function Parser(simpleGetPut,useAudio)
 				id[imgpos++] = (298*cy - 100*cu - 208*cv + 128)>>8;
 				id[imgpos++] = (298*cy + 516*cu + 128)>>8;
 				id[imgpos++] = 255;
-			}
-			this.buffer[(y<<1)+1] = (((this.audioout&65535)^32768)-32768)/32768;
-			for(var x=128;x<256;x++)
-			{
-				this.run(x,y);
-				cy = (p.videoout>>>8)&255;
-				cu = (((p.videoout>>>16)&255)^0x80)-128;
-				cv = ((p.videoout>>>24)^0x80)-128;
-				id[imgpos++] = (298*cy + 409*cv + 128)>>8;
-				id[imgpos++] = (298*cy - 100*cu - 208*cv + 128)>>8;
-				id[imgpos++] = (298*cy + 516*cu + 128)>>8;
-				id[imgpos++] = 255;
+				this.buffer[(y<<1)] = (((this.audioout&65535)^32768)-32768)/32768;
 			}
 		}
 		c.putImageData(idd,0,0);
