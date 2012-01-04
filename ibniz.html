@@ -502,10 +502,10 @@ function Parser(simpleGetPut,useAudio)
 							tempCode += "steps = (stacka.pop()>>16)&31; a = stacka.pop(); stacka.push((a>>>steps)|(a<<(32-steps)));";
 							break;
 						case 97:
-							tempCode += "a = stacka.pop(); stacka.push((Math.atan2(a,stacka.pop())*(65536/(2*Math.PI)))|0);";
+							tempCode += "a = stacka.pop(); stacka.push((Math.atan2(a,stacka.pop())*"+(65536/(2*Math.PI))+")|0);";
 							break;
 						case 115:
-							tempCode += "stacka.push((Math.sin(stacka.pop()*(2*Math.PI/65536))*65536)|0);";
+							tempCode += "stacka.push((Math.sin(stacka.pop()*"+(2*Math.PI/65536)+")*65536)|0);";
 							break;
 						case 113:
 							tempCode += "a = stacka.pop(); stacka.push(0 > a ? 0 : (65536 * Math.sqrt(a / 65536))|0);";
