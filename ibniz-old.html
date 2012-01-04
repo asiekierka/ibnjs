@@ -12,7 +12,7 @@ Why u no canvas
 <input type="checkbox" id="recalcAudio">More accurate audio (slightly slower)
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.A (Eval Edition)</b><br>
+<b>IBNIZ-js 0.9b</b><br>
 <a href="https://github.com/asiekierka/ibnjs">Github repository</a><br>
 <a href="mailto:asiekierka@gmail.com">Contact</a><br>
 <script type="text/javascript">
@@ -277,7 +277,7 @@ function Parser(simpleGetPut,useAudio)
 	{
 		return (this.isImmop(ci) || this.isLimm(ci) || ci==77||(ci>=118&&ci<=120)||ci==63||ci==58||ci==59||ci==82||ci==84||ci==105||ci==106||ci==91||ci==93||ci==76||ci==125);
 	}
-	this.parse = function()
+	this.compile = function()
 	{
 		var i = 0;
 		var j = 0;
@@ -419,316 +419,6 @@ function Parser(simpleGetPut,useAudio)
 			else i++;
 		}
 	}
-	this.compile = function()
-	{
-// TODO: fix parse ip settings
-/*
-		var i = 0;
-		var oldCode = this.code;
-		this.evals = new Array();
-		this.evals[0] = function(){};
-		while(i<oldCode.length)
-		{
-			this.parse();
-			this.evaluate();
-			this.evals[i] = this.evalCode;
-			this.code = this.code.substr(1);
-			this.parsedCode = new Array();
-			i++;
-		}
-*/
-		var i = 0;
-		var oldCode = this.parsedCode;
-		this.parse();
-		this.evals = new Array();
-		this.evals[0] = function(){};
-		while(i<oldCode.length)
-		{
-			this.evaluate(i);
-			this.evals[i] = this.evalCode;
-			//this.parsedCode = this.parsedCode.slice(1);
-			i++;
-		}
-		this.parsedCode = oldCode;
-	}
-	this.evalRol16 = function(a)
-	{
-		return "((" + a + "<<16)|(" + a + ">>>16))";
-	}
-	this.evaluate = function(startIP)
-	{
-		var tempCode = "";
-		var cmd;
-		var a;
-		tempCode += "var a; var stacka = me.stacka; var steps;";
-		this.ip=startIP;
-		for(var i=startIP; i<this.parsedCode.length; i++)
-		{
-			cmd = this.parsedCode[this.ip];
-			switch(cmd[0])
-			{
-				case 1: // op
-					switch(cmd[1])
-					{
-						// Math!
-						case 43:
-							tempCode += "a = stacka.pop(); stacka.push((a+stacka.pop())|0);";
-							break;
-						case 45:
-							tempCode += "a = stacka.pop(); stacka.push((stacka.pop()-a)|0);";
-							break;
-						case 42:
-							tempCode += "a = stacka.pop(); stacka.push(((a*stacka.pop())/65536)|0);";
-							break;
-						case 47:
-							tempCode += "a = stacka.pop(); stacka.push(((stacka.pop()*65536)/a)|0);";
-							break;
-						case 37:
-							tempCode += "a = stacka.pop(); stacka.push(stacka.pop()%a);";
-							break;
-						case 38:
-							tempCode += "a = stacka.pop(); stacka.push(a&stacka.pop());";
-							break;
-						case 124:
-							tempCode += "a = stacka.pop(); stacka.push(a|stacka.pop());";
-							break;
-						case 94:
-							tempCode += "a = stacka.pop(); stacka.push(a^stacka.pop());";
-							break;
-						case 108:
-							tempCode += "steps = (stacka.pop()>>16)&63; a = stacka.pop(); stacka.push(steps<32 ? a<<steps : a>>(steps-32));";
-							break;
-						case 114:
-							tempCode += "steps = (stacka.pop()>>16)&31; a = stacka.pop(); stacka.push((a>>>steps)|(a<<(32-steps)));";
-							break;
-						case 97:
-							tempCode += "a = stacka.pop(); stacka.push((Math.atan2(a,stacka.pop())*(65536/(2*Math.PI)))|0);";
-							break;
-						case 115:
-							tempCode += "stacka.push((Math.sin(stacka.pop()*(2*Math.PI/65536))*65536)|0);";
-							break;
-						case 113:
-							tempCode += "a = stacka.pop(); stacka.push(0 > a ? 0 : (65536 * Math.sqrt(a / 65536))|0);";
-							break;
-						case 60:
-							tempCode += "a = stacka.pop(); stacka.push(0 > a ? a : 0);";
-							break;
-						case 62:
-							tempCode += "a = stacka.pop(); stacka.push(0 < a ? a : 0);";
-							break;
-						case 61:
-							tempCode += "stacka.push(stacka.pop()==0);";
-							break;
-						case 126:
-							tempCode += "stacka.push(~stacka.pop());";
-							break;
-						// Exterior!
-						case 77: // media context switch
-							tempCode += "if(!me.mediaSwitch || !me.useAudio) return -15498; ";
-							tempCode += "else{me.mode=1; me.videoout = stacka.pop(); stacka.length=0;";
-							tempCode +=	"me.pmaudio(x,y);}";
-							break;
-						case 119: // where am I? well, where are you
-							tempCode +=	"me.pushmedia(x,y);";
-							break;
-						case 84:
-							tempCode +=	"return -15498;";
-							break;
-						// Stack!
-						case 100:
-							tempCode +=	"stacka.dup();";
-							break;
-						case 120:
-							tempCode +=	"stacka.exchange();";
-							break;
-						case 118:
-							tempCode +=	"stacka.trirot();";
-							break;
-						case 112:
-							tempCode +=	"stacka.pop();";
-							break;
-						case 41:
-							tempCode +=	"stacka.push(stacka.gettop(0-me.rol16(stacka.pop())));";
-							break;
-						case 40:
-							tempCode +=	"a = me.rol16(stacka.pop()); stacka.puttop(0-a,stacka.pop());";
-							break;
-						// Memory!
-						case 64:
-							tempCode +=	"stacka.push(me.get(me.rol16(stacka.pop())&1048575));";
-							break;
-						case 33:
-							tempCode +=	"a = me.rol16(stacka.pop()); me.put(a&1048575,stacka.pop());";
-							break;
-						// Return stack manipulation	
-						case 82:
-							tempCode +=	"stacka.push(me.rstacka.pop());";
-							break;
-						case 80:
-							tempCode +=	"me.rstacka.push(stacka.pop());";
-							break;
-						// Loops
-						case 105:
-							tempCode +=	"stacka.push(me.rstacka.gettop(-1));";
-							break;
-						case 106:
-							tempCode +=	"stacka.push(me.rstacka.gettop(-3));";
-							break;
-						case 74:
-							tempCode +=	"return me.rol16(stacka.pop())-1;";
-							break;
-						case 91:
-							tempCode +=	"me.rstacka.push("+this.rol16(this.ip+1)+");";
-							break;
-						case 93:
-							tempCode +=	"if(stacka.pop()!=0) return me.rol16(me.rstacka.gettop(0))-1; ";
-							tempCode += "else me.rstacka.pop();";
-							break;
-						case 88:
-							tempCode += "me.rstacka.push(stacka.pop());";
-							tempCode += "me.rstacka.push("+this.rol16(this.ip+1)+");";
-							break;
-						case 76:
-							tempCode +=	"a=me.rstacka.gettop(-1)-(1<<16);";
-							tempCode +=	"me.rstacka.puttop(-1,a);";
-							tempCode +=	"if(a!=0) return me.rol16(me.rstacka.gettop(0))-1;";
-							tempCode +=	"else { me.rstacka.pop(); me.rstacka.pop(); }";
-							break;
-						// Subroutines
-						case 125:
-							tempCode +=	"return me.rol16(me.rstacka.pop())-1;";
-							break;
-						case 86:
-							tempCode += "me.rstacka.push("+this.rol16(this.ip+1)+");";
-							tempCode += "return me.rol16(me.get(me.rol16(stacka.pop())&1048575))-1;";
-							break;
-						// Special
-						case 128: // Double trirot
-							tempCode += "stacka.trirot2();";
-							break;
-						default:
-							break;
-					}
-					break;
-				case 5: // imm+op+nextip
-					switch(cmd[2])
-					{
-						case 123:
-							tempCode += "me.put(" + cmd[1] + ","+this.rol16(this.ip+1)+");";
-							tempCode += "return " + cmd[3] + ";";
-							break;
-					}
-					break;
-				case 4: // op+nextip
-					switch(cmd[1])
-					{
-						case 123:
-							tempCode += "me.put(me.rol16(stacka.pop())&1048575,"+this.rol16(this.ip+1)+");";
-							tempCode += "return " + cmd[2] + ";";
-							break;
-						case 63:
-							tempCode += "if(stacka.pop()==0) return " + cmd[2] + ";";
-							break;
-						case 58:
-							tempCode += "return " + cmd[2] + ";";
-							break;
-					}
-					break;
-				case 3: // imm+op
-					switch(cmd[2])
-					{
-						case 43:
-							tempCode += "stacka.push(("+cmd[1]+"+stacka.pop())|0);";
-							break;
-						case 45:
-							tempCode += "stacka.push((stacka.pop()-"+cmd[1]+")|0);";
-							break;
-						case 42:
-							tempCode += "stacka.push((("+cmd[1]+"*stacka.pop())/65536)|0);";
-							break;
-						case 47:
-							tempCode += "stacka.push(((stacka.pop()*65536)/"+cmd[1]+")|0);"; 
-							break;
-						case 37:
-							tempCode += "stacka.push(stacka.pop()%"+cmd[1]+");";
-							break;
-						case 38:
-							tempCode += "stacka.push("+cmd[1]+"&stacka.pop());";
-							break;
-						case 124:
-							tempCode += "stacka.push("+cmd[1]+"|stacka.pop());"; 
-							break;
-						case 94:
-							tempCode += "stacka.push("+cmd[1]+"^stacka.pop());";
-							break;
-						case 108:
-							tempCode += "stacka.push(me.shl("+cmd[1]+",stacka.pop()));";
-							break;
-						case 114:
-							tempCode += "stacka.push(me.ror("+cmd[1]+",stacka.pop()));"; 
-							break;
-						case 97:
-							tempCode += "stacka.push((Math.atan2("+cmd[1]+",stacka.pop())*"+(65536/(2*Math.PI))+")|0);"; 
-							break;
-						case 115:
-							tempCode += "stacka.push("+((Math.sin(cmd[1]*(Math.PI/32768))*65536)|0)+");"; 
-							break;
-						case 113:
-							tempCode += "stacka.push("+(0 > cmd[1] ? 0 : (65536 * Math.sqrt(cmd[1] / 65536))|0)+");";
-							break;
-						case 126:
-							tempCode += "stacka.push("+(~cmd[1])+");"; 
-							break;
-						case 100:
-							tempCode += "stacka.push("+cmd[1]+","+cmd[1]+");";
-							break;
-						case 40:
-							tempCode += "stacka.puttop("+cmd[1]+",stacka.pop());";
-							break;
-						case 41:
-							tempCode += "stacka.push(stacka.gettop("+cmd[1]+"));";
-							break;
-						case 74:
-							tempCode += "return "+cmd[1]+";";
-							break;
-						case 64:
-							tempCode += "stacka.push(me.get("+cmd[1]+"));";
-							break;
-						case 33:
-							tempCode += "me.put("+cmd[1]+",stacka.pop());";
-							break;
-						case 86:
-							tempCode += "me.rstacka.push("+this.rol16(this.ip+1)+");";
-							tempCode += "return me.rol16(me.get("+cmd[1]+"))-1;";
-							break;
-						case 88:
-							tempCode += "me.rstacka.push("+cmd[1]+");";
-							tempCode += "me.rstacka.push("+this.rol16(this.ip+1)+");";
-							break;
-						case 80:
-							tempCode += "me.rstacka.push("+cmd[1]+");";
-							break;
-						case 112:
-							break;
-						// special
-						case 128: // direct load
-							tempCode += "stacka.push(me.mem["+cmd[1]+"]);";
-							break;
-						case 129: // direct store
-							tempCode += "me.mem["+cmd[1]+"]=stacka.pop();";
-							break;
-					}
-					break;
-				case 2: // imm
-					tempCode += "stacka.push("+cmd[1]+");";
-					break;
-				default:
-					break;
-			}
-			this.ip++;
-		}
-		eval("this.evalCode = function(me,x,y) {" + tempCode + " return -15498;};");
-	}
 	this.mediaSwitch=true;
 	this.configureStackmode = function()
 	{
@@ -758,10 +448,300 @@ function Parser(simpleGetPut,useAudio)
 		var cmd;
 		var a;
 		var stacka = this.stacka;
-		while(this.ip>=0)
+		while(this.terminate!=1)
 		{
-			this.ip = this.evals[this.ip](this,x,y)+1;
-			if(this.ip>=this.parsedCode.length) this.ip=-15498;
+			if(this.ip>=this.parsedCode.length)
+			{
+				this.terminate=1;
+				return;
+			}
+			cmd = this.parsedCode[this.ip];
+			switch(cmd[0])
+			{
+				case 1: // op
+					switch(cmd[1])
+					{
+						// Math!
+						case 43:
+							a = stacka.pop();
+							stacka.push((a+stacka.pop())|0); 
+							break;
+						case 45:
+							a = stacka.pop();
+							stacka.push((stacka.pop()-a)|0); 
+							break;
+						case 42:
+							a = stacka.pop();
+							stacka.push(((a*stacka.pop())/65536)|0); 
+							break;
+						case 47:
+							a = stacka.pop();
+							stacka.push(((stacka.pop()*65536)/a)|0); 
+							break;
+						case 37:
+							a = stacka.pop();
+							stacka.push(stacka.pop()%a); 
+							break;
+						case 38:
+							a = stacka.pop();
+							stacka.push(a&stacka.pop()); 
+							break;
+						case 124:
+							a = stacka.pop();
+							stacka.push(a|stacka.pop()); 
+							break;
+						case 94:
+							a = stacka.pop();
+							stacka.push(a^stacka.pop()); 
+							break;
+						case 108:
+							var steps = (stacka.pop()>>16)&63;
+							a = stacka.pop();
+							stacka.push(steps<32 ? a<<steps : a>>(steps-32));
+
+							break;
+						case 114:
+							var steps = (stacka.pop()>>16)&31;
+							a = stacka.pop();
+							stacka.push((a>>>steps)|(a<<(32-steps)));
+							break;
+						case 97:
+							a = stacka.pop();
+							stacka.push((Math.atan2(a,stacka.pop())*(65536/(2*Math.PI)))|0); 
+							break;
+						case 115:
+							stacka.push((Math.sin(stacka.pop()*(2*Math.PI/65536))*65536)|0); 
+							break;
+						case 113:
+							a = stacka.pop();
+							stacka.push(0 > a ? 0 : (65536 * Math.sqrt(a / 65536))|0); 
+							break;
+						case 60:
+							a = stacka.pop();
+							stacka.push(0 > a ? a : 0); 
+							break;
+						case 62:
+							a = stacka.pop();
+							stacka.push(0 < a ? a : 0); 
+							break;
+						case 61:
+							stacka.push(stacka.pop()==0); 
+							break;
+						case 126:
+							stacka.push(~stacka.pop()); 
+							break;
+						// Exterior!
+						case 77: // media context switch
+							if(!this.mediaSwitch || !this.useAudio) this.terminate=1;
+							else
+							{
+								this.mode=1;
+								this.videoout = stacka.pop();
+								stacka.length=0;
+								this.pmaudio(x,y);
+							}
+							break;
+						case 119: // where am I? well, where are you
+							this.pushmedia(x,y);
+							break;
+						case 84:
+							this.terminate = 1;
+							break;
+						// Stack!
+						case 100:
+							stacka.dup();
+							break;
+						case 120:
+							stacka.exchange();
+							break;
+						case 118:
+							stacka.trirot();
+							break;
+						case 112:
+							stacka.pop();
+							break;
+						case 41:
+							stacka.push(stacka.gettop(0-this.rol16(stacka.pop())));
+							break;
+						case 40:
+							a = this.rol16(stacka.pop());
+							stacka.puttop(0-a,stacka.pop());
+							break;
+						// Memory!
+						case 64:
+							stacka.push(this.get(this.rol16(stacka.pop())&1048575));
+							break;
+						case 33:
+							a = this.rol16(stacka.pop());
+							this.put(a&1048575,stacka.pop());
+							break;
+						// Return stack manipulation	
+						case 82:
+							stacka.push(this.rstacka.pop());
+							break;
+						case 80:
+							this.rstacka.push(stacka.pop());
+							break;
+						// Loops
+						case 105:
+							stacka.push(this.rstacka.gettop(-1));
+							break;
+						case 106:
+							stacka.push(this.rstacka.gettop(-3));
+							break;
+						case 74:
+							this.ip = this.rol16(stacka.pop())-1;
+							break;
+						case 91:
+							this.rstacka.push(this.rol16(this.ip+1));
+							break;
+						case 93:
+							if(stacka.pop()!=0) this.ip=this.rol16(this.rstacka.gettop(0))-1;
+							else this.rstacka.pop();
+							break;
+						case 88:
+							this.rstacka.push(stacka.pop());
+							this.rstacka.push(this.rol16(this.ip+1));
+							break;
+						case 76:
+							a=this.rstacka.gettop(-1)-(1<<16);
+							this.rstacka.puttop(-1,a);
+							if(a!=0) this.ip=this.rol16(this.rstacka.gettop(0))-1;
+							else { this.rstacka.pop(); this.rstacka.pop(); }
+							break;
+						// Subroutines
+						case 125:
+							this.ip = this.rol16(this.rstacka.pop())-1;
+							break;
+						case 86:
+							this.rstacka.push(this.rol16(this.ip+1));
+							this.ip = this.rol16(this.get(this.rol16(stacka.pop())&1048575))-1;
+							break;
+						// Special
+						case 128: // Double trirot
+							stacka.trirot2();
+							break;
+						default:
+							break;
+					}
+					break;
+				case 5: // imm+op+nextip
+					switch(cmd[2])
+					{
+						case 123:
+							this.put(cmd[1],this.rol16(this.ip+1));
+							this.ip = cmd[3];
+							break;
+					}
+					break;
+				case 4: // op+nextip
+					switch(cmd[1])
+					{
+						case 123:
+							this.put(this.rol16(stacka.pop())&1048575,this.rol16(this.ip+1));
+							this.ip = cmd[2];
+							break;
+						case 63:
+							a = stacka.pop();
+							if(a==0) this.ip = cmd[2];
+							break;
+						case 58:
+							this.ip = cmd[2];
+							break;
+					}
+					break;
+				case 3: // imm+op
+					switch(cmd[2])
+					{
+						case 43:
+							stacka.push((cmd[1]+stacka.pop())|0); 
+							break;
+						case 45:
+							stacka.push((stacka.pop()-cmd[1])|0); 
+							break;
+						case 42:
+							stacka.push(((cmd[1]*stacka.pop())/65536)|0);
+							break;
+						case 47:
+							stacka.push(((stacka.pop()*65536)/cmd[1])|0); 
+							break;
+						case 37:
+							stacka.push(stacka.pop()%cmd[1]); 
+							break;
+						case 38:
+							stacka.push(cmd[1]&stacka.pop()); 
+							break;
+						case 124:
+							stacka.push(cmd[1]|stacka.pop()); 
+							break;
+						case 94:
+							stacka.push(cmd[1]^stacka.pop()); 
+							break;
+						case 108:
+							stacka.push(this.shl(cmd[1],stacka.pop())); 
+							break;
+						case 114:
+							stacka.push(this.ror(cmd[1],stacka.pop())); 
+							break;
+						case 97:
+							stacka.push((Math.atan2(cmd[1],stacka.pop())*(65536/(2*Math.PI)))|0); 
+							break;
+						case 115:
+							stacka.push((Math.sin(cmd[1]*(Math.PI/32768))*65536)|0); 
+							break;
+						case 113:
+							stacka.push(0 > cmd[1] ? 0 : (65536 * Math.sqrt(cmd[1] / 65536))|0); 
+							break;
+						case 126:
+							stacka.push(~cmd[1]); 
+							break;
+						case 100:
+							stacka.push(cmd[1],cmd[1]);
+							break;
+						case 40:
+							stacka.puttop(cmd[1],stacka.pop());
+							break;
+						case 41:
+							stacka.push(stacka.gettop(cmd[1]));
+							break;
+						case 74:
+							this.ip = cmd[1];
+							break;
+						case 64:
+							stacka.push(this.get(cmd[1]));
+							break;
+						case 33:
+							this.put(cmd[1],stacka.pop());
+							break;
+						case 86:
+							this.rstacka.push(this.rol16(this.ip+1));
+							this.ip = this.rol16(this.get(cmd[1]))-1;
+							break;
+						case 88:
+							this.rstacka.push(cmd[1]);
+							this.rstacka.push(this.rol16(this.ip+1));
+							break;
+						case 80:
+							this.rstacka.push(cmd[1]);
+							break;
+						case 112:
+							break;
+						// special
+						case 128: // direct load
+							stacka.push(this.mem[cmd[1]]);
+							break;
+						case 129: // direct store
+							this.mem[cmd[1]]=stacka.pop();
+							break;
+					}
+					break;
+				case 2: // imm
+					stacka.push(cmd[1]);
+					break;
+				default:
+					break;
+			}
+			this.ip++;
 		}
 	}
 	this.useFFAudio = false;
@@ -858,7 +838,7 @@ function derp()
 		p.delayAudio(Math.round(60/fps));
 		p.configureStackmode();
 		p.config(simpleGetPut.checked,useAudio.checked,recalcAudio.checked);
-		fpsField.childNodes[1].nodeValue=fps.toFixed(2) + " (about " + (fps*65536*p.parsedCode.length).toFixed(0) + " cycles)";
+		fpsField.childNodes[1].nodeValue=fps.toFixed(2);
 		if(runningCode!=codeEdit.value)
 		{
 			p.t=0;
