@@ -1,5 +1,6 @@
 <html>
 <head>
+<title>IBNIZ-js</title>
 </head>
 <body>
 <canvas id="ibniz" width="256" height="256">
@@ -8,6 +9,7 @@ Why u no canvas
 <form>
 	<input type="text" id="code" style="width: 256px"><br>
 <input type="checkbox" id="pause">Pause <input type="checkbox" id="simpleGetPut">Simple memory access<br>
+<input type="checkbox" id="halfRes">Half resolution<br>
 <input type="checkbox" id="useAudio">Audio (experimental, firefox/chrome/safari)<br>
 <input type="checkbox" id="recalcAudio">More accurate audio (slightly slower)<br>
 Load: <select id="example_apps">
@@ -22,13 +24,16 @@ Load: <select id="example_apps">
 <option value="v8rsdv*vv*^wpp8r-">Munching zoomer</option>
 <option value="ax8r+3lwd*xd*+q1x/x5r+^">Texture tunnel</option>
 <option value="v8rds4X3)Lx~2Xv*vv*+i!L1@2@^">Rotozoomer</option>
+<option value="sa*">bubsy - looks funny after a while</option>
 <option value="d4rr">asiekierka - 4-char demo</option>
+<option value="wpp2rr+d*+M8rd11rx*">asiekierka - mindrape01</option>
+<option value="w8r-sqwqd*&w1~&+">asiekierka - glass</option>
 <option value="6{^^ddd***1%}5{v8rsdv*vv*^wpp8r-}4{v8rdsx.6+s4X3)Lx~2Xv*vv*+i!L1@2@^}3{ax8r+3lwd*xd*+q1x/x6r+^}2)6r3&3+V55A9^Md6r|5*wdAr&+">viznut - ibnizdemo.ib</option>
 <option value="axCr3ls3r+43lwd*xd*+q1x/x7r+^1%w^x20r8l+^M3*w5r&w5*w9r&w2*w6r&||">FreeFull - christmas demo</option>
 </select>
 </form>
 <div id="fps"><b>FPS:</b> [loading...]</div>
-<b>IBNIZ-js 0.B (Eval Edition)</b><br>
+<b>IBNIZ-js 0.C</b><br>
 <a href="https://github.com/asiekierka/ibnjs">Github repository</a><br>
 <a href="mailto:asiekierka@gmail.com">Contact</a><br>
 <script type="text/javascript">
@@ -304,6 +309,7 @@ function Parser(simpleGetPut,useAudio)
 				// Loadimm!
 				var imm1 = 0; // number
 				var imm2 = 0; // fraction
+				var imm2_c = 12;
 				var mode = 0; // number/fraction time?
 				while(this.isLimm(a) && i<this.code.length)
 				{
@@ -314,10 +320,11 @@ function Parser(simpleGetPut,useAudio)
 							if(a>=48 && a<=57) imm1=(imm1<<4)|(a-48); // number, 0-9
 							else imm1=(imm1<<4)|(a-55); // fraction, A-F
 						}
-						else
+						else if(imm2_c>0)
 						{
-							if(a>=48 && a<=57) imm2=(imm2>>4)|((a-48)<<12); // fraction, 0-9
-							else imm2=(imm2>>4)|((a-55)<<12); // fraction, A-F
+							if(a>=48 && a<=57) imm2=imm2|((a-48)<<imm2_c); // fraction, 0-9
+							else imm2=imm2|((a-55)<<imm2_c); // fraction, A-F
+							imm2_c-=4;
 						}
 					}
 					i++; // increment IP
@@ -486,28 +493,28 @@ function Parser(simpleGetPut,useAudio)
 					{
 						// Math!
 						case 43:
-							tempCode += "a = stacka.pop(); stacka.push((a+stacka.pop())|0);";
+							tempCode += "stacka.push((stacka.pop()+stacka.pop())|0);";
 							break;
 						case 45:
 							tempCode += "a = stacka.pop(); stacka.push((stacka.pop()-a)|0);";
 							break;
 						case 42:
-							tempCode += "a = stacka.pop(); stacka.push(((a*stacka.pop())/65536)|0);";
+							tempCode += "stacka.push((stacka.pop()*stacka.pop()/65536)|0);";
 							break;
 						case 47:
-							tempCode += "a = stacka.pop(); stacka.push(((stacka.pop()*65536)/a)|0);";
+							tempCode += "a = stacka.pop(); stacka.push((stacka.pop()*65536/a)|0);";
 							break;
 						case 37:
 							tempCode += "a = stacka.pop(); stacka.push(stacka.pop()%a);";
 							break;
 						case 38:
-							tempCode += "a = stacka.pop(); stacka.push(a&stacka.pop());";
+							tempCode += "stacka.push(stacka.pop()&stacka.pop());";
 							break;
 						case 124:
-							tempCode += "a = stacka.pop(); stacka.push(a|stacka.pop());";
+							tempCode += "stacka.push(stacka.pop()|stacka.pop());";
 							break;
 						case 94:
-							tempCode += "a = stacka.pop(); stacka.push(a^stacka.pop());";
+							tempCode += "stacka.push(stacka.pop()^stacka.pop());";
 							break;
 						case 108:
 							tempCode += "steps = (stacka.pop()>>16)&63; a = stacka.pop(); stacka.push(steps<32 ? a<<steps : a>>(steps-32));";
@@ -516,7 +523,7 @@ function Parser(simpleGetPut,useAudio)
 							tempCode += "steps = (stacka.pop()>>16)&31; a = stacka.pop(); stacka.push((a>>>steps)|(a<<(32-steps)));";
 							break;
 						case 97:
-							tempCode += "a = stacka.pop(); stacka.push((Math.atan2(a,stacka.pop())*"+(65536/(2*Math.PI))+")|0);";
+							tempCode += "stacka.push((Math.atan2(stacka.pop(),stacka.pop())*"+(65536/(2*Math.PI))+")|0);";
 							break;
 						case 115:
 							tempCode += "stacka.push((Math.sin(stacka.pop()*"+(2*Math.PI/65536)+")*65536)|0);";
@@ -565,7 +572,7 @@ function Parser(simpleGetPut,useAudio)
 							tempCode +=	"stacka.push(stacka.gettop(0-me.rol16(stacka.pop())));";
 							break;
 						case 40:
-							tempCode +=	"a = me.rol16(stacka.pop()); stacka.puttop(0-a,stacka.pop());";
+							tempCode +=	"a = 0-me.rol16(stacka.pop()); stacka.puttop(a,stacka.pop());";
 							break;
 						// Memory!
 						case 64:
@@ -605,7 +612,7 @@ function Parser(simpleGetPut,useAudio)
 						case 76:
 							tempCode +=	"a=me.rstacka.gettop(-1)-(1<<16);";
 							tempCode +=	"me.rstacka.puttop(-1,a);";
-							tempCode +=	"if(a!=0) return me.rol16(me.rstacka.gettop(0))-1;";
+							tempCode +=	"if(a) return me.rol16(me.rstacka.gettop(0))-1;";
 							tempCode +=	"else { me.rstacka.pop(); me.rstacka.pop(); }";
 							break;
 						// Subroutines
@@ -629,7 +636,6 @@ function Parser(simpleGetPut,useAudio)
 					{
 						case 123:
 							tempCode += "me.put(" + cmd[1] + ","+this.rol16(this.ip+1)+");";
-							//tempCode += "return " + cmd[3] + ";";
 							this.ip=cmd[3];
 							break;
 					}
@@ -639,14 +645,12 @@ function Parser(simpleGetPut,useAudio)
 					{
 						case 123:
 							tempCode += "me.put(me.rol16(stacka.pop())&1048575,"+this.rol16(this.ip+1)+");";
-							//tempCode += "return " + cmd[2] + ";";
 							this.ip=cmd[2];
 							break;
 						case 63:
 							tempCode += "if(stacka.pop()==0) return " + cmd[2] + ";";
 							break;
 						case 58:
-							//tempCode += "return " + cmd[2] + ";";
 							this.ip=cmd[2];
 							break;
 					}
@@ -683,6 +687,14 @@ function Parser(simpleGetPut,useAudio)
 							break;
 						case 114:
 							tempCode += "stacka.push(me.ror("+cmd[1]+",stacka.pop()));"; 
+							break;
+						/*
+						case 108:
+							tempCode += "steps = "+((cmd[1]>>16)&63)+"; a = stacka.pop(); stacka.push(steps<32 ? a<<steps : a>>(steps-32));";
+							break;
+						case 114:
+							tempCode += "steps = "+((cmd[1]>>16)&31)+"; a = stacka.pop(); stacka.push((a>>>steps)|(a<<(32-steps)));";
+						*/
 							break;
 						case 97:
 							tempCode += "stacka.push((Math.atan2("+cmd[1]+",stacka.pop())*"+(65536/(2*Math.PI))+")|0);"; 
@@ -819,6 +831,36 @@ function Parser(simpleGetPut,useAudio)
 			}
 		}
 		c.putImageData(idd,0,0);
+		this.renderAudio();
+	}
+	this.render2 = function(c)
+	{
+		var idd = c.createImageData(128,128);
+		var id = idd.data;
+		var imgpos = 0;
+		var cy = 0;
+		var cu = 0;
+		var cv = 0;
+		for(var y=0;y<256;y+=2)
+		{
+			for(var x=0;x<256;x+=2)
+			{
+				this.run(x,y);
+				cy = (p.videoout>>>8)&255;
+				cu = (((p.videoout>>>16)&255)^0x80)-128;
+				cv = ((p.videoout>>>24)^0x80)-128;
+				id[imgpos++] = (298*cy + 409*cv + 128)>>8;
+				id[imgpos++] = (298*cy - 100*cu - 208*cv + 128)>>8;
+				id[imgpos++] = (298*cy + 516*cu + 128)>>8;
+				id[imgpos++] = 255;
+				this.buffer[(y<<1)] = (((this.audioout&65535)^32768)-32768)/32768;
+			}
+		}
+		c.putImageData(idd,0,0);
+		this.renderAudio();
+	}
+	this.renderAudio = function()
+	{
 		if(this.useFFAudio) this.audioOut.mozWriteAudio(this.buffer);
 		else if(this.useChromeAudio)
 		{
@@ -846,7 +888,8 @@ function Parser(simpleGetPut,useAudio)
 }
 var p = new Parser(false,false);
 var oldloop = new Date;
-var c = document.getElementById("ibniz").getContext("2d");
+var cc = document.getElementById("ibniz");
+var c = cc.getContext("2d");
 var runningCode = " ";
 p.load(runningCode);
 p.t=0;
@@ -858,11 +901,21 @@ var useAudio = document.getElementById("useAudio");
 var recalcAudio = document.getElementById("recalcAudio");
 var exampleApps = document.getElementById("example_apps");
 var exampleAppID = -1;
+var halfRes = document.getElementById("halfRes");
+var cc2 = document.createElement("canvas");
+cc2.width = 256;
+cc2.height = 256;
+var c2 = cc2.getContext("2d");
 function derp()
 {
 	if(!pause.checked)
 	{
-		p.render(c);
+		if(halfRes.checked)
+		{
+			p.render2(c2);
+			c.drawImage(cc2,0,0,128,128,0,0,256,256);
+		}
+		else p.render(c);
 		var newloop = new Date;
 		var fps = 1000 / (newloop - oldloop);
 		oldloop=newloop;
@@ -870,7 +923,8 @@ function derp()
 		p.delayAudio(Math.round(60/fps));
 		p.configureStackmode();
 		p.config(simpleGetPut.checked,useAudio.checked,recalcAudio.checked);
-		fpsField.childNodes[1].nodeValue=fps.toFixed(2) + " (about " + (fps*65536*p.parsedCode.length).toFixed(0) + " cycles)";
+		//fpsField.childNodes[1].nodeValue=fps.toFixed(2) + " (about " + (fps*65536*p.parsedCode.length).toFixed(0) + " cycles)";
+		fpsField.childNodes[1].nodeValue=fps.toFixed(2);
 		if(exampleApps.selectedIndex!=exampleAppID)
 		{
 			exampleAppID=exampleApps.selectedIndex;
